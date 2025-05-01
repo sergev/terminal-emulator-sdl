@@ -106,6 +106,8 @@ private:
     CharAttr current_attr;
     AnsiState state{ AnsiState::NORMAL };
     std::string ansi_seq;
+    int font_size{ 16 };   // Current font size in points
+    std::string font_path; // Font file path
 
     // SDL resources
     SDL_Window *window{};
@@ -139,6 +141,7 @@ private:
     void handle_events();
     void handle_key_event(const SDL_KeyboardEvent &key);
     void process_modifiers(const SDL_KeyboardEvent &key, std::string &input);
+    void change_font_size(int delta);
 
     // ANSI parsing methods
     void process_input();

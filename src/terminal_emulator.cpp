@@ -54,6 +54,11 @@ TerminalEmulator::TerminalEmulator(int cols, int rows)
     : term_cols(cols), term_rows(rows)
 {
     emulator_instance = this;
+#ifdef __APPLE__
+    font_path = "/System/Library/Fonts/Menlo.ttc";
+#else
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
+#endif
 }
 
 TerminalEmulator::~TerminalEmulator()
@@ -111,10 +116,7 @@ bool TerminalEmulator::initialize_sdl()
         return false;
     }
 
-    font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 16);
-    if (!font) {
-        font = TTF_OpenFont("/System/Library/Fonts/Menlo.ttc", 16);
-    }
+    font = TTF_OpenFont(font_path.c_str(), font_size);
     if (!font) {
         std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
         return false;
@@ -372,6 +374,31 @@ void TerminalEmulator::handle_events()
 void TerminalEmulator::handle_key_event(const SDL_KeyboardEvent &key)
 {
     std::string input;
+    Uint16 mod = key.keysym.mod;
+
+    // Handle font size changes
+#ifdef __APPLE__
+    if (mod & KMOD_GUI) {
+        if (key.keysym.sym == SDLK_EQUALS) {
+            change_font_size(1); // Cmd+= to increase font size
+            return;
+        } else if (key.keysym.sym == SDLK_MINUS) {
+            change_font_size(-1); // Cmd+- to decrease font size
+            return;
+        }
+    }
+#else
+    if (mod & KMOD_CTRL) {
+        if (key.keysym.sym == SDLK_EQUALS) {
+            change_font_size(1); // Ctrl+= to increase font size
+            return;
+        } else if (key.keysym.sym == SDLK_MINUS) {
+            change_font_size(-1); // Ctrl+- to decrease font size
+            return;
+        }
+    }
+#endif
+
     process_modifiers(key, input);
     if (!input.empty()) {
         //std::cerr << "Sending input: ";
@@ -500,6 +527,95 @@ void TerminalEmulator::process_modifiers(const SDL_KeyboardEvent &key, std::stri
         }
         break;
     }
+}
+
+void TerminalEmulator::change_font_size(int delta)
+{
+    // Enforce font size limits
+    int new_size = font_size + delta;
+    if (new_size < 8 || new_size > 72) {
+        std::cerr << "Font size out of range: " << new_size << std::endl;
+        return;
+    }
+
+    // Close existing font
+    if (font) {
+        TTF_CloseFont(font);
+        font = nullptr;
+    }
+
+    // Load new font with updated size
+    font_size = new_size;
+    font      = TTF_OpenFont(font_path.c_str(), font_size);
+    if (!font) {
+        std::cerr << "Failed to load font at size " << font_size << ": " << TTF_GetError()
+                  << std::endl;
+        // Revert to default size
+        font_size = 16;
+        font      = TTF_OpenFont(font_path.c_str(), font_size);
+        if (!font) {
+            std::cerr << "Failed to revert to default font: " << TTF_GetError() << std::endl;
+            return;
+        }
+    }
+
+    // Update font metrics
+    TTF_SizeText(font, "M", &char_width, &char_height);
+    if (char_width == 0 || char_height == 0) {
+        std::cerr << "Failed to get font metrics for size " << font_size << std::endl;
+        TTF_CloseFont(font);
+        font = nullptr;
+        return;
+    }
+
+    // Resize window to fit new font size
+    SDL_SetWindowSize(window, term_cols * char_width, term_rows * char_height);
+
+    // Update terminal and window size
+    int win_width, win_height;
+    SDL_GetWindowSize(window, &win_width, &win_height);
+    int new_cols = std::max(win_width / char_width, 1);
+    int new_rows = std::max(win_height / char_height, 1);
+    term_cols = new_cols;
+    term_rows = new_rows;
+
+    // Update pseudo-terminal size
+    struct winsize ws;
+    ws.ws_col    = term_cols;
+    ws.ws_row    = term_rows;
+    ws.ws_xpixel = term_cols * char_width;
+    ws.ws_ypixel = term_rows * char_height;
+    if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
+        std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
+    } else {
+        //std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
+    }
+
+    // Notify child process
+    if (child_pid > 0) {
+        kill(child_pid, SIGWINCH);
+    }
+
+    // Resize buffers
+    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { ' ', current_attr }));
+    for (auto &line : text_buffer) {
+        line.resize(term_cols, { ' ', current_attr });
+    }
+    for (auto &line_spans : texture_cache) {
+        for (auto &span : line_spans) {
+            if (span.texture)
+                SDL_DestroyTexture(span.texture);
+        }
+    }
+    texture_cache.resize(term_rows);
+    dirty_lines.resize(term_rows, true);
+
+    // Clamp cursor
+    cursor.row = std::min(cursor.row, term_rows - 1);
+    cursor.col = std::min(cursor.col, term_cols - 1);
+
+    //std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols << "x"
+    //          << term_rows << std::endl;
 }
 
 void TerminalEmulator::process_input()
@@ -829,7 +945,7 @@ void TerminalEmulator::scroll_up()
 
 void TerminalEmulator::forward_signal(int sig)
 {
-    if (emulator_instance != nullptr && emulator_instance->child_pid > 0) {
+    if (emulator_instance && emulator_instance->child_pid > 0) {
         kill(emulator_instance->child_pid, sig);
     }
 }
