@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.14)
+project(TerminalEmulator VERSION 1.0 LANGUAGES CXX)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find SDL2 and SDL2_ttf
+find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+
+# Use FetchContent to download Googletest
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.15.2
+    EXCLUDE_FROM_ALL
+)
+
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# Enable testing
+enable_testing()
+
+# Main executable
+add_executable(terminal_emulator
+    src/main.cpp
+    src/terminal_emulator.cpp
+)
+target_include_directories(terminal_emulator PRIVATE src)
+target_link_libraries(terminal_emulator PRIVATE SDL2::SDL2 SDL2_ttf::SDL2_ttf)
+
+# Unit tests
+add_executable(unit_tests
+    src/terminal_emulator.cpp
+    src/unit_tests.cpp
+)
+target_include_directories(unit_tests PRIVATE src)
+target_link_libraries(unit_tests PRIVATE GTest::gtest_main SDL2::SDL2 SDL2_ttf::SDL2_ttf)
+
+# Add tests to CTest
+include(GoogleTest)
+gtest_discover_tests(unit_tests)
+
+# Installation
+install(TARGETS terminal_emulator DESTINATION bin)
