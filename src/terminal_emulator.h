@@ -104,22 +104,22 @@ private:
     std::vector<bool> dirty_lines;
     Cursor cursor;
     CharAttr current_attr;
-    AnsiState state;
+    AnsiState state{ AnsiState::NORMAL };
     std::string ansi_seq;
 
     // SDL resources
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    TTF_Font *font;
-    int char_width;
-    int char_height;
-    bool cursor_visible;
-    Uint32 last_cursor_toggle;
+    SDL_Window *window{};
+    SDL_Renderer *renderer{};
+    TTF_Font *font{};
+    int char_width{};
+    int char_height{};
+    bool cursor_visible{ true };
+    Uint32 last_cursor_toggle{};
     static const Uint32 cursor_blink_interval = 500;
 
     // PTY and child process
-    int master_fd;
-    static pid_t child_pid;
+    int master_fd{ -1 };
+    pid_t child_pid{};
 
     // ANSI colors
     static const SDL_Color ansi_colors[];

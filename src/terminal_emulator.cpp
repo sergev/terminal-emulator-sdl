@@ -39,8 +39,6 @@
 // Static signal handler context
 static TerminalEmulator *emulator_instance = nullptr;
 
-pid_t TerminalEmulator::child_pid = 0;
-
 const SDL_Color TerminalEmulator::ansi_colors[] = {
     { 0, 0, 0, 255 },       // Black
     { 255, 0, 0, 255 },     // Red
@@ -53,9 +51,7 @@ const SDL_Color TerminalEmulator::ansi_colors[] = {
 };
 
 TerminalEmulator::TerminalEmulator(int cols, int rows)
-    : term_cols(cols), term_rows(rows), window(nullptr), renderer(nullptr), font(nullptr),
-      char_width(0), char_height(0), cursor_visible(true), last_cursor_toggle(0), master_fd(-1),
-      state(AnsiState::NORMAL)
+    : term_cols(cols), term_rows(rows)
 {
     emulator_instance = this;
 }
@@ -183,12 +179,6 @@ bool TerminalEmulator::initialize_pty(struct termios &slave_termios, char *&slav
     slave_termios.c_lflag |= ISIG;
     slave_termios.c_iflag |= ICRNL;
     slave_termios.c_oflag |= OPOST | ONLCR;
-
-    struct winsize ws;
-    ws.ws_col    = term_cols;
-    ws.ws_row    = term_rows;
-    ws.ws_xpixel = term_cols * char_width;
-    ws.ws_ypixel = term_rows * char_height;
 
     fcntl(master_fd, F_SETFL, O_NONBLOCK);
     return true;
@@ -402,7 +392,9 @@ void TerminalEmulator::handle_key_event(const SDL_KeyboardEvent &key)
         //    std::cerr << (int)c << " ";
         //}
         //std::cerr << std::endl;
-        write(master_fd, input.c_str(), input.size());
+        if (write(master_fd, input.c_str(), input.size()) < 0) {
+            std::cerr << "Error writing to master_fd: " << strerror(errno) << std::endl;
+        }
     }
 }
 
@@ -850,8 +842,8 @@ void TerminalEmulator::scroll_up()
 
 void TerminalEmulator::forward_signal(int sig)
 {
-    if (child_pid > 0) {
-        kill(child_pid, sig);
+    if (emulator_instance != nullptr && emulator_instance->child_pid > 0) {
+        kill(emulator_instance->child_pid, sig);
     }
 }
 

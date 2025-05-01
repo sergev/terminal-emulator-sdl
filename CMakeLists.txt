@@ -4,6 +4,7 @@ project(TerminalEmulator VERSION 1.0 LANGUAGES CXX)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options(-Wall -Werror -Wshadow)
 
 # Find SDL2 and SDL2_ttf
 find_package(SDL2 REQUIRED)
