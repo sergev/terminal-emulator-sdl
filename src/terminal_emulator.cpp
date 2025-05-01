@@ -498,10 +498,6 @@ void TerminalEmulator::process_modifiers(const SDL_KeyboardEvent &key, std::stri
             if (key.keysym.sym >= SDLK_a && key.keysym.sym <= SDLK_z) {
                 char ctrl_char = (key.keysym.sym - SDLK_a) + 1;
                 input          = std::string(1, ctrl_char);
-            } else if (key.keysym.sym == SDLK_c) {
-                kill(child_pid, SIGINT);
-            } else if (key.keysym.sym == SDLK_d) {
-                kill(child_pid, SIGTERM);
             }
         } else if (key.keysym.sym >= SDLK_a && key.keysym.sym <= SDLK_z) {
             char base_char = key.keysym.sym - SDLK_a + 'a';
