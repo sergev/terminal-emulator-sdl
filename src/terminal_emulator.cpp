@@ -108,7 +108,6 @@ bool TerminalEmulator::initialize_sdl()
     }
     if (TTF_Init() < 0) {
         std::cerr << "TTF_Init failed: " << TTF_GetError() << std::endl;
-        SDL_Quit();
         return false;
     }
 
@@ -118,17 +117,12 @@ bool TerminalEmulator::initialize_sdl()
     }
     if (!font) {
         std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
     TTF_SizeText(font, "M", &char_width, &char_height);
     if (char_width == 0 || char_height == 0) {
         std::cerr << "Failed to get font metrics" << std::endl;
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
@@ -136,20 +130,13 @@ bool TerminalEmulator::initialize_sdl()
                               term_cols * char_width, term_rows * char_height,
                               SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
-        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
+        std::cerr << "Cannot access GUI display. Please ensure a graphical environment is available.\n";
         return false;
     }
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << std::endl;
-        SDL_DestroyWindow(window);
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
