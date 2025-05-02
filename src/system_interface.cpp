@@ -526,7 +526,7 @@ KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
         break;
     default:
         key.code = KeyCode::CHARACTER;
-        key.character = static_cast<char>(keysym.sym);
+        key.character = static_cast<wchar_t>(keysym.sym);
         break;
     }
 

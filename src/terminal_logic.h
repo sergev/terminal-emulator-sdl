@@ -27,6 +27,7 @@
 #include <gtest/gtest_prod.h>
 
 #include <cstdint>
+#include <cwchar>
 #include <map>
 #include <string>
 #include <vector>
@@ -51,7 +52,7 @@ enum class KeyCode {
 // Structure for key input
 struct KeyInput {
     KeyCode code{ KeyCode::UNKNOWN };
-    char character{};
+    wchar_t character{};
     bool mod_shift{};
     bool mod_ctrl{};
 

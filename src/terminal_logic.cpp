@@ -190,6 +190,22 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
     return dirty_rows;
 }
 
+static std::string wchar_to_utf8(wchar_t wc)
+{
+    std::string utf8;
+    if (wc <= 0x7F) {
+        utf8 += static_cast<char>(wc);
+    } else if (wc <= 0x7FF) {
+        utf8 += static_cast<char>(0xC0 | ((wc >> 6) & 0x1F));
+        utf8 += static_cast<char>(0x80 | (wc & 0x3F));
+    } else if (wc <= 0xFFFF) {
+        utf8 += static_cast<char>(0xE0 | ((wc >> 12) & 0x0F));
+        utf8 += static_cast<char>(0x80 | ((wc >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (wc & 0x3F));
+    } // Add handling for wc > 0xFFFF if needed
+    return utf8;
+}
+
 std::string TerminalLogic::process_key(const KeyInput &key)
 {
     std::string input;
@@ -307,7 +323,8 @@ std::string TerminalLogic::process_key(const KeyInput &key)
             }
             input = std::string(1, base_char);
         } else {
-            // Unknown character.
+            // TODO: mod_shift
+            input = wchar_to_utf8(key.character);
         }
         break;
     }
