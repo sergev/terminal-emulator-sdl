@@ -181,6 +181,43 @@ TEST_F(TerminalLogicTest, TextBufferInsertion)
     EXPECT_EQ(logic->cursor.col, 11);
 }
 
+// Test scroll up
+TEST_F(TerminalLogicTest, ScrollUp)
+{
+    // Fill the first row with 'a'
+    for (int c = 0; c < logic->term_cols; ++c) {
+        logic->text_buffer[0][c] = { 'a', logic->current_attr };
+    }
+    // Fill the last row with 'b'
+    for (int c = 0; c < logic->term_cols; ++c) {
+        logic->text_buffer[logic->term_rows - 1][c] = { 'b', logic->current_attr };
+    }
+
+    // Set cursor to last row
+    logic->cursor.row = logic->term_rows - 1;
+    logic->cursor.col = 0;
+
+    // Process a newline to trigger scroll
+    const char input[] = "\n";
+    auto dirty_rows    = logic->process_input(input, 1);
+
+    // Verify buffer shifted: first row is gone, second row now first, last row is blank
+    EXPECT_EQ(logic->text_buffer[0][0].ch, ' ');
+    EXPECT_EQ(logic->text_buffer[logic->term_rows - 2][0].ch, 'b');
+    EXPECT_EQ(logic->text_buffer[logic->term_rows - 1][0].ch, ' ');
+
+    // Verify cursor is on the last row
+    EXPECT_EQ(logic->cursor.row, logic->term_rows - 1);
+    EXPECT_EQ(logic->cursor.col, 0);
+
+    // Verify all rows are marked dirty
+    std::vector<int> expected_dirty_rows;
+    for (int r = 0; r < logic->term_rows; ++r) {
+        expected_dirty_rows.push_back(r);
+    }
+    EXPECT_EQ(dirty_rows, expected_dirty_rows);
+}
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

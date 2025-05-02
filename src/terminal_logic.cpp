@@ -72,9 +72,13 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 cursor.col = 0;
                 if (cursor.row >= term_rows) {
                     scroll_up();
-                    dirty_rows.push_back(term_rows - 1);
+                    // Mark all rows as dirty since the entire buffer shifts
+                    for (int r = 0; r < term_rows; ++r) {
+                        dirty_rows.push_back(r);
+                    }
+                } else {
+                    dirty_rows.push_back(cursor.row);
                 }
-                dirty_rows.push_back(cursor.row);
             } else if (c == '\r') {
                 cursor.col = 0;
                 if (i + 1 < length && buffer[i + 1] == '\n') {
@@ -82,10 +86,16 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     cursor.row++;
                     if (cursor.row >= term_rows) {
                         scroll_up();
-                        dirty_rows.push_back(term_rows - 1);
+                        // Mark all rows as dirty since the entire buffer shifts
+                        for (int r = 0; r < term_rows; ++r) {
+                            dirty_rows.push_back(r);
+                        }
+                    } else {
+                        dirty_rows.push_back(cursor.row);
                     }
+                } else {
+                    dirty_rows.push_back(cursor.row);
                 }
-                dirty_rows.push_back(cursor.row);
             } else if (c == '\b') {
                 if (cursor.col > 0) {
                     cursor.col--;
@@ -103,7 +113,10 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     cursor.row++;
                     if (cursor.row >= term_rows) {
                         scroll_up();
-                        dirty_rows.push_back(term_rows - 1);
+                        // Mark all rows as dirty since the entire buffer shifts
+                        for (int r = 0; r < term_rows; ++r) {
+                            dirty_rows.push_back(r);
+                        }
                     }
                 }
             }
@@ -298,7 +311,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
                 try {
                     params.push_back(std::stoi(param_str));
                 } catch (const std::exception &e) {
-                    //std::cerr << "Error parsing parameter '" << param_str << "': " << e.what() << std::endl;
+                    //std::cerr << "Error parsing parameter '" << param_str << "': " << e.what()
+                    //          << std::endl;
                     params.push_back(0);
                 }
                 param_str.clear();
@@ -311,7 +325,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
         try {
             params.push_back(std::stoi(param_str));
         } catch (const std::exception &e) {
-            //std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what() << std::endl;
+            //std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what()
+            //          << std::endl;
             params.push_back(0);
         }
     }
@@ -432,5 +447,5 @@ void TerminalLogic::scroll_up()
 {
     text_buffer.erase(text_buffer.begin());
     text_buffer.push_back(std::vector<Char>(term_cols, { ' ', current_attr }));
-    cursor.row--;
+    cursor.row = term_rows - 1; // Ensure cursor stays on the last row
 }
