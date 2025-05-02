@@ -66,7 +66,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
             if (c == '\033') {
                 state = AnsiState::ESCAPE;
                 ansi_seq.clear();
-                //std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
+                // std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
             } else if (c == '\n') {
                 cursor.row++;
                 cursor.col = 0;
@@ -124,9 +124,9 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 state = AnsiState::CSI;
                 ansi_seq.clear();
                 ansi_seq += c;
-                //std::cerr << "Received [, transitioning to CSI state" << std::endl;
+                // std::cerr << "Received [, transitioning to CSI state" << std::endl;
             } else if (c == 'c') {
-                //std::cerr << "Received ESC c, processing reset" << std::endl;
+                // std::cerr << "Received ESC c, processing reset" << std::endl;
                 parse_ansi_sequence("", c);
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
@@ -134,8 +134,8 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     dirty_rows.push_back(r);
                 }
             } else {
-                //std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL"
-                //          << std::endl;
+                // std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL"
+                //           << std::endl;
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
             }
@@ -144,7 +144,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
         case AnsiState::CSI:
             ansi_seq += c;
             if (std::isalpha(c)) {
-                //std::cerr << "Received CSI final char: " << c << std::endl;
+                // std::cerr << "Received CSI final char: " << c << std::endl;
                 parse_ansi_sequence(ansi_seq, c);
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
@@ -162,99 +162,106 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
 std::string TerminalLogic::process_key(const KeyInput &key)
 {
     std::string input;
-    //std::cerr << "Key processed: Keycode=" << key.code << ", Modifiers=" << modifiers << std::endl;
+    // std::cerr << "Key processed: Keycode=" << key.code << ", Modifiers=" << modifiers <<
+    // std::endl;
 
     // Map SDL keycodes to terminal inputs
     switch (key.code) {
-    case 13:
+    case KeyCode::UNKNOWN:
+        // No input.
+        break;
+    case KeyCode::ENTER:
         input = "\r";
-        break; // SDLK_RETURN
-    case 8:
+        break;
+    case KeyCode::BACKSPACE:
         input = "\b";
-        break; // SDLK_BACKSPACE
-    case 9:
+        break;
+    case KeyCode::TAB:
         input = "\t";
-        break; // SDLK_TAB
-    case 273:
+        break;
+    case KeyCode::ESCAPE:
+        input = "\33";
+        break;
+    case KeyCode::UP:
         input = "\033[A";
-        break; // SDLK_UP
-    case 274:
+        break;
+    case KeyCode::DOWN:
         input = "\033[B";
-        break; // SDLK_DOWN
-    case 275:
+        break;
+    case KeyCode::RIGHT:
         input = "\033[C";
-        break; // SDLK_RIGHT
-    case 276:
+        break;
+    case KeyCode::LEFT:
         input = "\033[D";
-        break; // SDLK_LEFT
-    case 278:
+        break;
+    case KeyCode::HOME:
         input = "\033[H";
-        break; // SDLK_HOME
-    case 279:
+        break;
+    case KeyCode::END:
         input = "\033[F";
-        break; // SDLK_END
-    case 277:
+        break;
+    case KeyCode::INSERT:
         input = "\033[2~";
-        break; // SDLK_INSERT
-    case 127:
+        break;
+    case KeyCode::DELETE:
         input = "\033[3~";
-        break; // SDLK_DELETE
-    case 280:
+        break;
+    case KeyCode::PAGEUP:
         input = "\033[5~";
-        break; // SDLK_PAGEUP
-    case 281:
+        break;
+    case KeyCode::PAGEDOWN:
         input = "\033[6~";
-        break; // SDLK_PAGEDOWN
-    case 282:
+        break;
+    case KeyCode::F1:
         input = "\033[11~";
-        break; // SDLK_F1
-    case 283:
+        break;
+    case KeyCode::F2:
         input = "\033[12~";
-        break; // SDLK_F2
-    case 284:
+        break;
+    case KeyCode::F3:
         input = "\033[13~";
-        break; // SDLK_F3
-    case 285:
+        break;
+    case KeyCode::F4:
         input = "\033[14~";
-        break; // SDLK_F4
-    case 286:
+        break;
+    case KeyCode::F5:
         input = "\033[15~";
-        break; // SDLK_F5
-    case 287:
+        break;
+    case KeyCode::F6:
         input = "\033[17~";
-        break; // SDLK_F6
-    case 288:
+        break;
+    case KeyCode::F7:
         input = "\033[18~";
-        break; // SDLK_F7
-    case 289:
+        break;
+    case KeyCode::F8:
         input = "\033[19~";
-        break; // SDLK_F8
-    case 290:
+        break;
+    case KeyCode::F9:
         input = "\033[20~";
-        break; // SDLK_F9
-    case 291:
+        break;
+    case KeyCode::F10:
         input = "\033[21~";
-        break; // SDLK_F10
-    case 292:
+        break;
+    case KeyCode::F11:
         input = "\033[23~";
-        break; // SDLK_F11
-    case 293:
+        break;
+    case KeyCode::F12:
         input = "\033[24~";
-        break; // SDLK_F12
-    default:
+        break;
+    case KeyCode::CHARACTER:
         if (key.mod_ctrl) {
-            if (key.code >= 'a' && key.code <= 'z') {
-                char ctrl_char = (key.code - 'a') + 1;
+            if (key.character >= 'a' && key.character <= 'z') {
+                char ctrl_char = (key.character - 'a') + 1;
                 input          = std::string(1, ctrl_char);
             }
-        } else if (key.code >= 'a' && key.code <= 'z') {
-            char base_char = key.code;
+        } else if (key.character >= 'a' && key.character <= 'z') {
+            char base_char = key.character;
             if (key.mod_shift) {
                 base_char = std::toupper(base_char);
             }
             input = std::string(1, base_char);
-        } else if (key.code >= 32 && key.code <= 126) {
-            char base_char = key.code;
+        } else if (key.character >= ' ' && key.character <= '~') {
+            char base_char = key.character;
             if (key.mod_shift) {
                 static const std::map<char, char> shift_map = {
                     { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
@@ -268,6 +275,8 @@ std::string TerminalLogic::process_key(const KeyInput &key)
                 }
             }
             input = std::string(1, base_char);
+        } else {
+            // Unknown character.
         }
         break;
     }
@@ -292,11 +301,11 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
     }
 
     if (seq.empty() || seq[0] != '[') {
-        //std::cerr << "Invalid CSI sequence: " << seq << final_char << std::endl;
+        // std::cerr << "Invalid CSI sequence: " << seq << final_char << std::endl;
         return;
     }
 
-    //std::cerr << "Processing CSI sequence: " << seq << final_char << std::endl;
+    // std::cerr << "Processing CSI sequence: " << seq << final_char << std::endl;
 
     std::vector<int> params;
     std::string param_str;
@@ -309,8 +318,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
                 try {
                     params.push_back(std::stoi(param_str));
                 } catch (const std::exception &e) {
-                    //std::cerr << "Error parsing parameter '" << param_str << "': " << e.what()
-                    //          << std::endl;
+                    // std::cerr << "Error parsing parameter '" << param_str << "': " << e.what()
+                    //           << std::endl;
                     params.push_back(0);
                 }
                 param_str.clear();
@@ -323,8 +332,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
         try {
             params.push_back(std::stoi(param_str));
         } catch (const std::exception &e) {
-            //std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what()
-            //          << std::endl;
+            // std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what()
+            //           << std::endl;
             params.push_back(0);
         }
     }
@@ -415,7 +424,7 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
 
     case 'K': {
         int mode = params.empty() ? 0 : params[0];
-        //std::cerr << "Processing ESC [ " << mode << "K" << std::endl;
+        // std::cerr << "Processing ESC [ " << mode << "K" << std::endl;
         switch (mode) {
         case 0:
             for (int c = cursor.col; c < term_cols; ++c) {
@@ -433,7 +442,7 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
             }
             break;
         default:
-            //std::cerr << "Unknown EL mode: " << mode << std::endl;
+            // std::cerr << "Unknown EL mode: " << mode << std::endl;
             break;
         }
         break;
@@ -452,7 +461,7 @@ void TerminalLogic::clear_screen()
 
 void TerminalLogic::reset_state()
 {
-    //std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
+    // std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
     current_attr = CharAttr();
     clear_screen();
 }

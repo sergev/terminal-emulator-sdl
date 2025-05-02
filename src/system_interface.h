@@ -51,7 +51,7 @@ private:
     int term_rows;
     std::vector<std::vector<TextSpan>> texture_cache;
     std::vector<bool> dirty_lines;
-    int font_size{ 16 };   // Current font size in points
+    int font_size{ 16 }; // Current font size in points
     std::string font_path;
 
     // SDL resources

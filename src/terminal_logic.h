@@ -31,14 +31,33 @@
 #include <string>
 #include <vector>
 
+// Device-independent keycodes
+enum class KeyCode {
+    // clang-format off
+    UNKNOWN,
+    ENTER,
+    BACKSPACE,
+    TAB,
+    ESCAPE,
+    UP, DOWN, RIGHT, LEFT,
+    HOME, END,
+    INSERT, DELETE,
+    PAGEUP, PAGEDOWN,
+    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    CHARACTER, // For printable characters
+    // clang-format off
+};
+
 // Structure for key input
 struct KeyInput {
-    unsigned code{};
+    KeyCode code{ KeyCode::UNKNOWN };
+    char character{};
     bool mod_shift{};
     bool mod_ctrl{};
 
     KeyInput() = default;
-    KeyInput(unsigned c, bool shift, bool ctrl) : code(c), mod_shift(shift), mod_ctrl(ctrl) {}
+    KeyInput(unsigned c, bool shift, bool ctrl) :
+        code(KeyCode::CHARACTER), character(c), mod_shift(shift), mod_ctrl(ctrl) {}
 };
 
 // Structure for character attributes

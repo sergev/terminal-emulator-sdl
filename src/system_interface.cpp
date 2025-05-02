@@ -118,7 +118,8 @@ bool SystemInterface::initialize_sdl()
                               term_cols * char_width, term_rows * char_height,
                               SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
-        std::cerr << "Cannot access GUI display. Please ensure a graphical environment is available.\n";
+        std::cerr << "Cannot access GUI display.\n";
+        std::cerr << "Please ensure a graphical environment is available.\n";
         return false;
     }
 
@@ -410,11 +411,11 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
     // Forward key to TerminalLogic
     std::string input = terminal_logic.process_key(keysym_to_key_input(key.keysym));
     if (!input.empty()) {
-        //std::cerr << "Sending input: ";
-        //for (char c : input) {
-        //    std::cerr << (int)c << " ";
-        //}
-        //std::cerr << std::endl;
+        // std::cerr << "Sending input: ";
+        // for (char c : input) {
+        //     std::cerr << (int)c << " ";
+        // }
+        // std::cerr << std::endl;
         write(master_fd, input.c_str(), input.size());
     }
 }
@@ -423,8 +424,94 @@ KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
 {
     KeyInput key;
 
-    //TODO: Map SDL2 keycodes to KeyCode enum
-    key.code      = keysym.sym;
+    // Map SDL2 keycodes to KeyCode enum
+    switch (keysym.sym) {
+    case SDLK_RETURN:
+        key.code = KeyCode::ENTER;
+        break;
+    case SDLK_BACKSPACE:
+        key.code = KeyCode::BACKSPACE;
+        break;
+    case SDLK_TAB:
+        key.code = KeyCode::TAB;
+        break;
+    case SDLK_ESCAPE:
+        key.code = KeyCode::ESCAPE;
+        break;
+    case SDLK_UP:
+        key.code = KeyCode::UP;
+        break;
+    case SDLK_DOWN:
+        key.code = KeyCode::DOWN;
+        break;
+    case SDLK_RIGHT:
+        key.code = KeyCode::RIGHT;
+        break;
+    case SDLK_LEFT:
+        key.code = KeyCode::LEFT;
+        break;
+    case SDLK_HOME:
+        key.code = KeyCode::HOME;
+        break;
+    case SDLK_END:
+        key.code = KeyCode::END;
+        break;
+    case SDLK_INSERT:
+        key.code = KeyCode::INSERT;
+        break;
+    case SDLK_DELETE:
+        key.code = KeyCode::DELETE;
+        break;
+    case SDLK_PAGEUP:
+        key.code = KeyCode::PAGEUP;
+        break;
+    case SDLK_PAGEDOWN:
+        key.code = KeyCode::PAGEDOWN;
+        break;
+    case SDLK_F1:
+        key.code = KeyCode::F1;
+        break;
+    case SDLK_F2:
+        key.code = KeyCode::F2;
+        break;
+    case SDLK_F3:
+        key.code = KeyCode::F3;
+        break;
+    case SDLK_F4:
+        key.code = KeyCode::F4;
+        break;
+    case SDLK_F5:
+        key.code = KeyCode::F5;
+        break;
+    case SDLK_F6:
+        key.code = KeyCode::F6;
+        break;
+    case SDLK_F7:
+        key.code = KeyCode::F7;
+        break;
+    case SDLK_F8:
+        key.code = KeyCode::F8;
+        break;
+    case SDLK_F9:
+        key.code = KeyCode::F9;
+        break;
+    case SDLK_F10:
+        key.code = KeyCode::F10;
+        break;
+    case SDLK_F11:
+        key.code = KeyCode::F11;
+        break;
+    case SDLK_F12:
+        key.code = KeyCode::F12;
+        break;
+    default:
+        key.code = KeyCode::CHARACTER;
+        if (keysym.sym >= ' ' && keysym.sym <= '~') {
+            key.character = static_cast<char>(keysym.sym);
+        }
+        break;
+    }
+
     key.mod_shift = keysym.mod & KMOD_SHIFT;
     key.mod_ctrl  = keysym.mod & KMOD_CTRL;
     return key;
@@ -434,7 +521,7 @@ void SystemInterface::change_font_size(int delta)
 {
     int new_size = font_size + delta;
     if (new_size < 8 || new_size > 72) {
-        //std::cerr << "Font size out of range: " << new_size << std::endl;
+        // std::cerr << "Font size out of range: " << new_size << std::endl;
         return;
     }
 
@@ -481,7 +568,7 @@ void SystemInterface::change_font_size(int delta)
     if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
         std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
     } else {
-        //std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
+        // std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
     }
 
     if (child_pid > 0) {
@@ -498,8 +585,9 @@ void SystemInterface::change_font_size(int delta)
     texture_cache.resize(term_rows);
     dirty_lines.resize(term_rows, true);
 
-    //std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols << "x"
-    //          << term_rows << std::endl;
+    // std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols <<
+    // "x"
+    //           << term_rows << std::endl;
 }
 
 void SystemInterface::process_pty_input()
@@ -524,11 +612,11 @@ void SystemInterface::process_pty_input()
         }
 
         buffer[bytes] = '\0';
-        //std::cerr << "Read " << bytes << " bytes: ";
-        //for (ssize_t j = 0; j < bytes; ++j) {
-        //    std::cerr << (int)buffer[j] << " ";
-        //}
-        //std::cerr << std::endl;
+        // std::cerr << "Read " << bytes << " bytes: ";
+        // for (ssize_t j = 0; j < bytes; ++j) {
+        //     std::cerr << (int)buffer[j] << " ";
+        // }
+        // std::cerr << std::endl;
 
         // Process input through TerminalLogic
         auto dirty_rows = terminal_logic.process_input(buffer, bytes);
