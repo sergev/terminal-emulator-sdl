@@ -85,7 +85,7 @@ struct TextSpan {
     std::wstring text; // Use wstring for Unicode
     CharAttr attr;
     int start_col;
-    void *texture = nullptr; // Opaque pointer for SystemInterface
+    void *texture = nullptr; // Opaque pointer for SdlInterface
 };
 
 // Cursor position

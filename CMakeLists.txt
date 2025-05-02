@@ -30,7 +30,7 @@ enable_testing()
 # Main executable
 add_executable(terminal_emulator
     src/main.cpp
-    src/system_interface.cpp
+    src/sdl_interface.cpp
     src/terminal_logic.cpp
 )
 target_include_directories(terminal_emulator PRIVATE

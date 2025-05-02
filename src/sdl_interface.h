@@ -21,8 +21,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#ifndef SYSTEM_INTERFACE_H
-#define SYSTEM_INTERFACE_H
+#ifndef SDL_INTERFACE_H
+#define SDL_INTERFACE_H
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -38,10 +38,10 @@
 #include <util.h>
 #endif
 
-class SystemInterface {
+class SdlInterface {
 public:
-    SystemInterface(int cols = 80, int rows = 24);
-    ~SystemInterface();
+    SdlInterface(int cols = 80, int rows = 24);
+    ~SdlInterface();
     bool initialize();
     void run();
 
@@ -96,4 +96,4 @@ private:
     static void handle_sigwinch(int sig);
 };
 
-#endif // SYSTEM_INTERFACE_H
+#endif // SDL_INTERFACE_H

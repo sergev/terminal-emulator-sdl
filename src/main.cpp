@@ -21,11 +21,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "system_interface.h"
+#include "sdl_interface.h"
 
 int main()
 {
-    SystemInterface interface(80, 24);
+    SdlInterface interface(80, 24);
     if (!interface.initialize()) {
         return 1;
     }

@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "system_interface.h"
+#include "sdl_interface.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -36,9 +36,9 @@
 #include <codecvt>
 
 // Static signal handler context
-static SystemInterface *interface_instance = nullptr;
+static SdlInterface *interface_instance = nullptr;
 
-SystemInterface::SystemInterface(int cols, int rows)
+SdlInterface::SdlInterface(int cols, int rows)
     : term_cols(cols), term_rows(rows), terminal_logic(cols, rows)
 {
     interface_instance = this;
@@ -49,7 +49,7 @@ SystemInterface::SystemInterface(int cols, int rows)
 #endif
 }
 
-SystemInterface::~SystemInterface()
+SdlInterface::~SdlInterface()
 {
     if (child_pid > 0) {
         kill(child_pid, SIGTERM);
@@ -74,7 +74,7 @@ SystemInterface::~SystemInterface()
     SDL_Quit();
 }
 
-bool SystemInterface::initialize()
+bool SdlInterface::initialize()
 {
     if (!initialize_sdl())
         return false;
@@ -92,7 +92,7 @@ bool SystemInterface::initialize()
     return true;
 }
 
-bool SystemInterface::initialize_sdl()
+bool SdlInterface::initialize_sdl()
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
@@ -133,7 +133,7 @@ bool SystemInterface::initialize_sdl()
     return true;
 }
 
-bool SystemInterface::initialize_pty(struct termios &slave_termios, char *&slave_name)
+bool SdlInterface::initialize_pty(struct termios &slave_termios, char *&slave_name)
 {
     master_fd = posix_openpt(O_RDWR | O_NOCTTY);
     if (master_fd == -1) {
@@ -161,7 +161,7 @@ bool SystemInterface::initialize_pty(struct termios &slave_termios, char *&slave
     return true;
 }
 
-bool SystemInterface::initialize_child_process(const char *slave_name,
+bool SdlInterface::initialize_child_process(const char *slave_name,
                                                const struct termios &slave_termios)
 {
     child_pid = fork();
@@ -215,7 +215,7 @@ bool SystemInterface::initialize_child_process(const char *slave_name,
     return true;
 }
 
-void SystemInterface::run()
+void SdlInterface::run()
 {
     bool running = true;
     while (running) {
@@ -230,7 +230,7 @@ void SystemInterface::run()
     }
 }
 
-void SystemInterface::render_text()
+void SdlInterface::render_text()
 {
     Uint32 current_time = SDL_GetTicks();
     if (current_time - last_cursor_toggle >= cursor_blink_interval) {
@@ -263,7 +263,7 @@ static std::string wstring_to_utf8(const std::wstring &wstr)
     return utf8;
 }
 
-void SystemInterface::update_texture_cache()
+void SdlInterface::update_texture_cache()
 {
     const auto &text_buffer = terminal_logic.get_text_buffer();
 
@@ -327,7 +327,7 @@ void SystemInterface::update_texture_cache()
     }
 }
 
-void SystemInterface::render_spans()
+void SdlInterface::render_spans()
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -351,7 +351,7 @@ void SystemInterface::render_spans()
     }
 }
 
-void SystemInterface::render_cursor()
+void SdlInterface::render_cursor()
 {
     if (cursor_visible) {
         const auto &cursor = terminal_logic.get_cursor();
@@ -364,7 +364,7 @@ void SystemInterface::render_cursor()
     }
 }
 
-void SystemInterface::handle_events()
+void SdlInterface::handle_events()
 {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -403,7 +403,7 @@ void SystemInterface::handle_events()
     }
 }
 
-void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
+void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
 {
     // Handle font size changes
 #ifdef __APPLE__
@@ -440,7 +440,7 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
     }
 }
 
-KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
+KeyInput SdlInterface::keysym_to_key_input(const SDL_Keysym &keysym)
 {
     KeyInput key;
 
@@ -535,7 +535,7 @@ KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
     return key;
 }
 
-void SystemInterface::change_font_size(int delta)
+void SdlInterface::change_font_size(int delta)
 {
     int new_size = font_size + delta;
     if (new_size < 8 || new_size > 72) {
@@ -608,7 +608,7 @@ void SystemInterface::change_font_size(int delta)
     //           << term_rows << std::endl;
 }
 
-void SystemInterface::process_pty_input()
+void SdlInterface::process_pty_input()
 {
     fd_set read_fds;
     FD_ZERO(&read_fds);
@@ -646,14 +646,14 @@ void SystemInterface::process_pty_input()
     }
 }
 
-void SystemInterface::forward_signal(int sig)
+void SdlInterface::forward_signal(int sig)
 {
     if (interface_instance && interface_instance->child_pid > 0) {
         kill(interface_instance->child_pid, sig);
     }
 }
 
-void SystemInterface::handle_sigwinch(int sig)
+void SdlInterface::handle_sigwinch(int sig)
 {
     if (interface_instance) {
         int win_width, win_height;
