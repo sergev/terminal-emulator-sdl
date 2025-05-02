@@ -109,6 +109,8 @@ public:
     std::string process_key(KeyCode keycode, bool mod_shift, bool mod_ctrl, char character = 0);
     const std::vector<std::vector<Char>> &get_text_buffer() const;
     const Cursor &get_cursor() const;
+    int get_cols() const; // Added getter for term_cols
+    int get_rows() const; // Added getter for term_rows
 
 private:
 #ifdef ENABLE_GTEST

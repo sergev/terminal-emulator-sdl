@@ -332,6 +332,16 @@ const Cursor &TerminalLogic::get_cursor() const
     return cursor;
 }
 
+int TerminalLogic::get_cols() const
+{
+    return term_cols;
+}
+
+int TerminalLogic::get_rows() const
+{
+    return term_rows;
+}
+
 int TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char,
                                        std::vector<int> &dirty_rows)
 {

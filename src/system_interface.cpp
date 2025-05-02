@@ -265,7 +265,7 @@ void SystemInterface::process_sdl_event()
             }
 
             // Process the key with the mapped KeyCode and character
-            std::string input = terminal.process_key(keycode, modifiers, character);
+            std::string input = terminal.process_key(keycode, modifiers & KMOD_SHIFT, modifiers & KMOD_CTRL, character);
             if (!input.empty()) {
                 write(pty_fd, input.c_str(), input.size());
             }
