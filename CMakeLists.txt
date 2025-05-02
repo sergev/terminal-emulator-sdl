@@ -32,8 +32,16 @@ add_executable(terminal_emulator
     src/system_interface.cpp
     src/terminal_logic.cpp
 )
-target_include_directories(terminal_emulator PRIVATE src)
-target_link_libraries(terminal_emulator PRIVATE SDL2::SDL2 SDL2_ttf::SDL2_ttf)
+target_include_directories(terminal_emulator PRIVATE
+    src
+    ${SDL2_INCLUDE_DIRS}
+    SDL2_ttf::SDL2_ttf
+    ${gtest_SOURCE_DIR}/include
+)
+target_link_libraries(terminal_emulator PRIVATE
+    SDL2::SDL2
+    SDL2_ttf::SDL2_ttf
+)
 
 # Unit tests
 add_executable(unit_tests
