@@ -75,13 +75,13 @@ struct CharAttr {
 
 // Structure for a single character with attributes
 struct Char {
-    char ch = ' ';
+    wchar_t ch = L' '; // Use wchar_t for Unicode
     CharAttr attr;
 };
 
 // Structure for a span of characters with the same attributes
 struct TextSpan {
-    std::string text;
+    std::wstring text; // Use wstring for Unicode
     CharAttr attr;
     int start_col;
     void *texture = nullptr; // Opaque pointer for SystemInterface

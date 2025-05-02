@@ -59,7 +59,8 @@ void TerminalLogic::resize(int new_cols, int new_rows)
 std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
 {
     std::vector<int> dirty_rows;
-    for (size_t i = 0; i < length; ++i) {
+    size_t i = 0;
+    while (i < length) {
         char c = buffer[i];
         switch (state) {
         case AnsiState::NORMAL:
@@ -67,6 +68,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 state = AnsiState::ESCAPE;
                 ansi_seq.clear();
                 // std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
+                ++i;
             } else if (c == '\n') {
                 cursor.row++;
                 cursor.col = 0;
@@ -78,6 +80,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 } else {
                     dirty_rows.push_back(cursor.row);
                 }
+                ++i;
             } else if (c == '\r') {
                 cursor.col = 0;
                 if (i + 1 < length && buffer[i + 1] == '\n') {
@@ -94,15 +97,40 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 } else {
                     dirty_rows.push_back(cursor.row);
                 }
+                ++i;
             } else if (c == '\b') {
                 if (cursor.col > 0) {
                     cursor.col--;
-                    text_buffer[cursor.row][cursor.col] = { ' ', current_attr };
+                    text_buffer[cursor.row][cursor.col] = { L' ', current_attr };
                     dirty_rows.push_back(cursor.row);
                 }
-            } else if (c >= 32 && c <= 126) {
+                ++i;
+            } else {
+                // Decode UTF-8 sequence
+                wchar_t ch = 0;
+                int bytes  = 0;
+                if ((buffer[i] & 0x80) == 0) { // 1-byte (ASCII)
+                    ch    = buffer[i];
+                    bytes = 1;
+                } else if ((buffer[i] & 0xE0) == 0xC0 && i + 1 < length) { // 2-byte
+                    ch    = ((buffer[i] & 0x1F) << 6) | (buffer[i + 1] & 0x3F);
+                    bytes = 2;
+                } else if ((buffer[i] & 0xF0) == 0xE0 && i + 2 < length) { // 3-byte
+                    ch = ((buffer[i] & 0x0F) << 12) | ((buffer[i + 1] & 0x3F) << 6) |
+                         (buffer[i + 2] & 0x3F);
+                    bytes = 3;
+                } else if ((buffer[i] & 0xF8) == 0xF0 && i + 3 < length) { // 4-byte
+                    ch = ((buffer[i] & 0x07) << 18) | ((buffer[i + 1] & 0x3F) << 12) |
+                         ((buffer[i + 2] & 0x3F) << 6) | (buffer[i + 3] & 0x3F);
+                    bytes = 4;
+                } else {
+                    // Invalid UTF-8, skip
+                    ++i;
+                    continue;
+                }
+
                 if (cursor.col < term_cols && cursor.row < term_rows) {
-                    text_buffer[cursor.row][cursor.col] = { c, current_attr };
+                    text_buffer[cursor.row][cursor.col] = { ch, current_attr };
                     cursor.col++;
                     dirty_rows.push_back(cursor.row);
                 }
@@ -116,6 +144,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                         }
                     }
                 }
+                i += bytes;
             }
             break;
 
@@ -139,6 +168,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
             }
+            ++i;
             break;
 
         case AnsiState::CSI:
@@ -150,6 +180,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 ansi_seq.clear();
                 dirty_rows.push_back(cursor.row);
             }
+            ++i;
             break;
         }
     }

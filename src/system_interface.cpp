@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include <iostream>
+#include <codecvt>
 
 // Static signal handler context
 static SystemInterface *interface_instance = nullptr;
@@ -244,9 +245,28 @@ void SystemInterface::render_text()
     SDL_RenderPresent(renderer);
 }
 
+static std::string wstring_to_utf8(const std::wstring &wstr)
+{
+    std::string utf8;
+    for (wchar_t wc : wstr) {
+        if (wc <= 0x7F) {
+            utf8 += static_cast<char>(wc);
+        } else if (wc <= 0x7FF) {
+            utf8 += static_cast<char>(0xC0 | ((wc >> 6) & 0x1F));
+            utf8 += static_cast<char>(0x80 | (wc & 0x3F));
+        } else if (wc <= 0xFFFF) {
+            utf8 += static_cast<char>(0xE0 | ((wc >> 12) & 0x0F));
+            utf8 += static_cast<char>(0x80 | ((wc >> 6) & 0x3F));
+            utf8 += static_cast<char>(0x80 | (wc & 0x3F));
+        } // Add handling for wc > 0xFFFF if needed
+    }
+    return utf8;
+}
+
 void SystemInterface::update_texture_cache()
 {
     const auto &text_buffer = terminal_logic.get_text_buffer();
+
     for (size_t i = 0; i < text_buffer.size(); ++i) {
         if (!dirty_lines[i])
             continue;
@@ -257,7 +277,7 @@ void SystemInterface::update_texture_cache()
         }
         texture_cache[i].clear();
 
-        std::string current_text;
+        std::wstring current_text;
         CharAttr current_span_attr = text_buffer[i][0].attr;
         int start_col              = 0;
 
@@ -274,7 +294,7 @@ void SystemInterface::update_texture_cache()
 
                     SDL_Color fg         = { current_span_attr.fg_r, current_span_attr.fg_g,
                                              current_span_attr.fg_b, current_span_attr.fg_a };
-                    SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
+                    SDL_Surface *surface = TTF_RenderUTF8_Blended(font, wstring_to_utf8(current_text).c_str(), fg);
                     if (surface) {
                         span.texture = SDL_CreateTextureFromSurface(renderer, surface);
                         SDL_FreeSurface(surface);
@@ -295,7 +315,7 @@ void SystemInterface::update_texture_cache()
 
             SDL_Color fg = { current_span_attr.fg_r, current_span_attr.fg_g, current_span_attr.fg_b,
                              current_span_attr.fg_a };
-            SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
+            SDL_Surface *surface = TTF_RenderUTF8_Blended(font, wstring_to_utf8(current_text).c_str(), fg);
             if (surface) {
                 span.texture = SDL_CreateTextureFromSurface(renderer, surface);
                 SDL_FreeSurface(surface);
@@ -506,9 +526,7 @@ KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
         break;
     default:
         key.code = KeyCode::CHARACTER;
-        if (keysym.sym >= ' ' && keysym.sym <= '~') {
-            key.character = static_cast<char>(keysym.sym);
-        }
+        key.character = static_cast<char>(keysym.sym);
         break;
     }
 
