@@ -72,7 +72,6 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 cursor.col = 0;
                 if (cursor.row >= term_rows) {
                     scroll_up();
-                    // Mark all rows as dirty since the entire buffer shifts
                     for (int r = 0; r < term_rows; ++r) {
                         dirty_rows.push_back(r);
                     }
@@ -86,7 +85,6 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     cursor.row++;
                     if (cursor.row >= term_rows) {
                         scroll_up();
-                        // Mark all rows as dirty since the entire buffer shifts
                         for (int r = 0; r < term_rows; ++r) {
                             dirty_rows.push_back(r);
                         }
@@ -113,7 +111,6 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     cursor.row++;
                     if (cursor.row >= term_rows) {
                         scroll_up();
-                        // Mark all rows as dirty since the entire buffer shifts
                         for (int r = 0; r < term_rows; ++r) {
                             dirty_rows.push_back(r);
                         }
@@ -137,7 +134,8 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                     dirty_rows.push_back(r);
                 }
             } else {
-                //std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL" << std::endl;
+                //std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL"
+                //          << std::endl;
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
             }
@@ -389,12 +387,28 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
 
     case 'J': {
         int mode = params.empty() ? 0 : params[0];
-        if (mode == 0 || mode == 2) {
-            for (int r = cursor.row; r < term_rows; ++r) {
-                for (int c = (r == cursor.row ? cursor.col : 0); c < term_cols; ++c) {
+        if (mode == 0) {
+            // Clear from cursor to end of screen
+            for (int c = cursor.col; c < term_cols; ++c) {
+                text_buffer[cursor.row][c] = { ' ', current_attr };
+            }
+            for (int r = cursor.row + 1; r < term_rows; ++r) {
+                for (int c = 0; c < term_cols; ++c) {
                     text_buffer[r][c] = { ' ', current_attr };
                 }
             }
+        } else if (mode == 1) {
+            // Clear from start of screen to cursor
+            for (int r = 0; r < cursor.row; ++r) {
+                for (int c = 0; c < term_cols; ++c) {
+                    text_buffer[r][c] = { ' ', current_attr };
+                }
+            }
+            for (int c = 0; c <= cursor.col; ++c) {
+                text_buffer[cursor.row][c] = { ' ', current_attr };
+            }
+        } else if (mode == 2) {
+            clear_screen();
         }
         break;
     }
@@ -432,14 +446,14 @@ void TerminalLogic::clear_screen()
     for (int r = 0; r < term_rows; ++r) {
         text_buffer[r] = std::vector<Char>(term_cols, { ' ', current_attr });
     }
+    cursor.row = 0;
+    cursor.col = 0;
 }
 
 void TerminalLogic::reset_state()
 {
     //std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
     current_attr = CharAttr();
-    cursor.row   = 0;
-    cursor.col   = 0;
     clear_screen();
 }
 
@@ -447,5 +461,5 @@ void TerminalLogic::scroll_up()
 {
     text_buffer.erase(text_buffer.begin());
     text_buffer.push_back(std::vector<Char>(term_cols, { ' ', current_attr }));
-    cursor.row = term_rows - 1; // Ensure cursor stays on the last row
+    cursor.row = term_rows - 1;
 }

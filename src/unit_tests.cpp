@@ -218,6 +218,128 @@ TEST_F(TerminalLogicTest, ScrollUp)
     EXPECT_EQ(dirty_rows, expected_dirty_rows);
 }
 
+// Test ESC [2J (clear entire screen)
+TEST_F(TerminalLogicTest, ClearScreenEsc2J)
+{
+    // Fill buffer with 'x'
+    for (int r = 0; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            logic->text_buffer[r][c] = { 'x', logic->current_attr };
+        }
+    }
+    logic->cursor = { 5, 10 };
+
+    // Process ESC [2J
+    const char input[] = "\033[2J";
+    auto dirty_rows    = logic->process_input(input, 4);
+
+    // Verify entire buffer is cleared
+    for (int r = 0; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            EXPECT_EQ(logic->text_buffer[r][c].ch, ' ');
+        }
+    }
+
+    // Verify cursor is at (0,0)
+    EXPECT_EQ(logic->cursor.row, 0);
+    EXPECT_EQ(logic->cursor.col, 0);
+
+    // Verify all rows are marked dirty
+    std::vector<int> expected_dirty_rows;
+    for (int r = 0; r < logic->term_rows; ++r) {
+        expected_dirty_rows.push_back(r);
+    }
+    EXPECT_EQ(dirty_rows, expected_dirty_rows);
+}
+
+// Test ESC [0J (clear from cursor to end of screen)
+TEST_F(TerminalLogicTest, ClearScreenEsc0J)
+{
+    // Fill buffer with 'x'
+    for (int r = 0; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            logic->text_buffer[r][c] = { 'x', logic->current_attr };
+        }
+    }
+    logic->cursor = { 5, 10 };
+
+    // Process ESC [0J
+    const char input[] = "\033[0J";
+    auto dirty_rows    = logic->process_input(input, 4);
+
+    // Verify rows before cursor.row are unchanged
+    for (int r = 0; r < 5; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            EXPECT_EQ(logic->text_buffer[r][c].ch, 'x');
+        }
+    }
+    // Verify cursor.row from cursor.col to end is cleared
+    for (int c = 0; c < 10; ++c) {
+        EXPECT_EQ(logic->text_buffer[5][c].ch, 'x');
+    }
+    for (int c = 10; c < logic->term_cols; ++c) {
+        EXPECT_EQ(logic->text_buffer[5][c].ch, ' ');
+    }
+    // Verify rows after cursor.row are cleared
+    for (int r = 6; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            EXPECT_EQ(logic->text_buffer[r][c].ch, ' ');
+        }
+    }
+
+    // Verify cursor position unchanged
+    EXPECT_EQ(logic->cursor.row, 5);
+    EXPECT_EQ(logic->cursor.col, 10);
+
+    // Verify dirty rows (from cursor.row to end)
+    std::vector<int> expected_dirty_rows = { 5 };
+    EXPECT_EQ(dirty_rows, expected_dirty_rows);
+}
+
+// Test ESC [1J (clear from start of screen to cursor)
+TEST_F(TerminalLogicTest, ClearScreenEsc1J)
+{
+    // Fill buffer with 'x'
+    for (int r = 0; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            logic->text_buffer[r][c] = { 'x', logic->current_attr };
+        }
+    }
+    logic->cursor = { 5, 10 };
+
+    // Process ESC [1J
+    const char input[] = "\033[1J";
+    auto dirty_rows    = logic->process_input(input, 4);
+
+    // Verify rows before cursor.row are cleared
+    for (int r = 0; r < 5; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            EXPECT_EQ(logic->text_buffer[r][c].ch, ' ');
+        }
+    }
+    // Verify cursor.row from start to cursor.col is cleared
+    for (int c = 0; c <= 10; ++c) {
+        EXPECT_EQ(logic->text_buffer[5][c].ch, ' ');
+    }
+    for (int c = 11; c < logic->term_cols; ++c) {
+        EXPECT_EQ(logic->text_buffer[5][c].ch, 'x');
+    }
+    // Verify rows after cursor.row are unchanged
+    for (int r = 6; r < logic->term_rows; ++r) {
+        for (int c = 0; c < logic->term_cols; ++c) {
+            EXPECT_EQ(logic->text_buffer[r][c].ch, 'x');
+        }
+    }
+
+    // Verify cursor position unchanged
+    EXPECT_EQ(logic->cursor.row, 5);
+    EXPECT_EQ(logic->cursor.col, 10);
+
+    // Verify dirty rows (from 0 to cursor.row)
+    std::vector<int> expected_dirty_rows = { 5 };
+    EXPECT_EQ(dirty_rows, expected_dirty_rows);
+}
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

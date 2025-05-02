@@ -86,6 +86,9 @@ private:
     FRIEND_TEST(TerminalLogicTest, ControlModifier);
     FRIEND_TEST(TerminalLogicTest, TextBufferInsertion);
     FRIEND_TEST(TerminalLogicTest, ScrollUp);
+    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc0J);
+    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc1J);
+    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc2J);
 
     // Terminal state
     int term_cols;
