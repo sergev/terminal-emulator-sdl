@@ -9,6 +9,7 @@ add_compile_options(-Wall -Werror -Wshadow)
 # Find SDL2 and SDL2_ttf
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
+find_package(ICU REQUIRED COMPONENTS uc)
 
 # Use FetchContent to download Googletest
 include(FetchContent)
@@ -41,6 +42,7 @@ target_include_directories(terminal_emulator PRIVATE
 target_link_libraries(terminal_emulator PRIVATE
     SDL2::SDL2
     SDL2_ttf::SDL2_ttf
+    ICU::uc
 )
 
 # Unit tests
@@ -49,7 +51,10 @@ add_executable(unit_tests
     src/unit_tests.cpp
 )
 target_include_directories(unit_tests PRIVATE src)
-target_link_libraries(unit_tests PRIVATE GTest::gtest_main)
+target_link_libraries(unit_tests PRIVATE
+    GTest::gtest_main
+    ICU::uc
+)
 
 # Add tests to CTest
 include(GoogleTest)

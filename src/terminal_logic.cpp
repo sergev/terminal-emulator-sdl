@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
+#include <unicode/uchar.h>
 
 const CharAttr TerminalLogic::ansi_colors[] = {
     { 0, 0, 0, 255, 0, 0, 0, 255 },       // Black
@@ -323,8 +324,12 @@ std::string TerminalLogic::process_key(const KeyInput &key)
             }
             input = std::string(1, base_char);
         } else {
-            // TODO: mod_shift
-            input = wchar_to_utf8(key.character);
+            auto ch = key.character;
+            if (key.mod_shift) {
+                // Convert Unicode character to uppercase
+                ch = u_toupper(ch);
+            }
+            input = wchar_to_utf8(ch);
         }
         break;
     }
