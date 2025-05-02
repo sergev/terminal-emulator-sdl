@@ -22,120 +22,124 @@
 // SOFTWARE.
 //
 #include "terminal_logic.h"
-#include <iostream>
-#include <cctype>
+
 #include <algorithm>
+#include <cctype>
+#include <iostream>
 
 const CharAttr TerminalLogic::ansi_colors[] = {
-    {0, 0, 0, 255, 0, 0, 0, 255},         // Black
-    {255, 0, 0, 255, 0, 0, 0, 255},       // Red
-    {0, 255, 0, 255, 0, 0, 0, 255},       // Green
-    {255, 255, 0, 255, 0, 0, 0, 255},     // Yellow
-    {0, 0, 255, 255, 0, 0, 0, 255},       // Blue
-    {255, 0, 255, 255, 0, 0, 0, 255},     // Magenta
-    {0, 255, 255, 255, 0, 0, 0, 255},     // Cyan
-    {255, 255, 255, 255, 0, 0, 0, 255},   // White
+    { 0, 0, 0, 255, 0, 0, 0, 255 },       // Black
+    { 255, 0, 0, 255, 0, 0, 0, 255 },     // Red
+    { 0, 255, 0, 255, 0, 0, 0, 255 },     // Green
+    { 255, 255, 0, 255, 0, 0, 0, 255 },   // Yellow
+    { 0, 0, 255, 255, 0, 0, 0, 255 },     // Blue
+    { 255, 0, 255, 255, 0, 0, 0, 255 },   // Magenta
+    { 0, 255, 255, 255, 0, 0, 0, 255 },   // Cyan
+    { 255, 255, 255, 255, 0, 0, 0, 255 }, // White
 };
 
 TerminalLogic::TerminalLogic(int cols, int rows)
-    : term_cols(cols), term_rows(rows), state(AnsiState::NORMAL) {
-    text_buffer.resize(term_rows, std::vector<Char>(term_cols, {' ', current_attr}));
+    : term_cols(cols), term_rows(rows), state(AnsiState::NORMAL)
+{
+    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { ' ', current_attr }));
 }
 
-void TerminalLogic::resize(int new_cols, int new_rows) {
+void TerminalLogic::resize(int new_cols, int new_rows)
+{
     term_cols = new_cols;
     term_rows = new_rows;
-    text_buffer.resize(term_rows, std::vector<Char>(term_cols, {' ', current_attr}));
-    for (auto& line : text_buffer) {
-        line.resize(term_cols, {' ', current_attr});
+    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { ' ', current_attr }));
+    for (auto &line : text_buffer) {
+        line.resize(term_cols, { ' ', current_attr });
     }
     cursor.row = std::min(cursor.row, term_rows - 1);
     cursor.col = std::min(cursor.col, term_cols - 1);
 }
 
-std::vector<int> TerminalLogic::process_input(const char* buffer, size_t length) {
+std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
+{
     std::vector<int> dirty_rows;
     for (size_t i = 0; i < length; ++i) {
         char c = buffer[i];
         switch (state) {
-            case AnsiState::NORMAL:
-                if (c == '\033') {
-                    state = AnsiState::ESCAPE;
-                    ansi_seq.clear();
-                    std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
-                } else if (c == '\n') {
+        case AnsiState::NORMAL:
+            if (c == '\033') {
+                state = AnsiState::ESCAPE;
+                ansi_seq.clear();
+                //std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
+            } else if (c == '\n') {
+                cursor.row++;
+                cursor.col = 0;
+                if (cursor.row >= term_rows) {
+                    scroll_up();
+                    dirty_rows.push_back(term_rows - 1);
+                }
+                dirty_rows.push_back(cursor.row);
+            } else if (c == '\r') {
+                cursor.col = 0;
+                if (i + 1 < length && buffer[i + 1] == '\n') {
+                    ++i;
                     cursor.row++;
-                    cursor.col = 0;
                     if (cursor.row >= term_rows) {
                         scroll_up();
                         dirty_rows.push_back(term_rows - 1);
                     }
+                }
+                dirty_rows.push_back(cursor.row);
+            } else if (c == '\b') {
+                if (cursor.col > 0) {
+                    cursor.col--;
+                    text_buffer[cursor.row][cursor.col] = { ' ', current_attr };
                     dirty_rows.push_back(cursor.row);
-                } else if (c == '\r') {
+                }
+            } else if (c >= 32 && c <= 126) {
+                if (cursor.col < term_cols && cursor.row < term_rows) {
+                    text_buffer[cursor.row][cursor.col] = { c, current_attr };
+                    cursor.col++;
+                    dirty_rows.push_back(cursor.row);
+                }
+                if (cursor.col >= term_cols) {
                     cursor.col = 0;
-                    if (i + 1 < length && buffer[i + 1] == '\n') {
-                        ++i;
-                        cursor.row++;
-                        if (cursor.row >= term_rows) {
-                            scroll_up();
-                            dirty_rows.push_back(term_rows - 1);
-                        }
-                    }
-                    dirty_rows.push_back(cursor.row);
-                } else if (c == '\b') {
-                    if (cursor.col > 0) {
-                        cursor.col--;
-                        text_buffer[cursor.row][cursor.col] = {' ', current_attr};
-                        dirty_rows.push_back(cursor.row);
-                    }
-                } else if (c >= 32 && c <= 126) {
-                    if (cursor.col < term_cols && cursor.row < term_rows) {
-                        text_buffer[cursor.row][cursor.col] = {c, current_attr};
-                        cursor.col++;
-                        dirty_rows.push_back(cursor.row);
-                    }
-                    if (cursor.col >= term_cols) {
-                        cursor.col = 0;
-                        cursor.row++;
-                        if (cursor.row >= term_rows) {
-                            scroll_up();
-                            dirty_rows.push_back(term_rows - 1);
-                        }
+                    cursor.row++;
+                    if (cursor.row >= term_rows) {
+                        scroll_up();
+                        dirty_rows.push_back(term_rows - 1);
                     }
                 }
-                break;
+            }
+            break;
 
-            case AnsiState::ESCAPE:
-                if (c == '[') {
-                    state = AnsiState::CSI;
-                    ansi_seq.clear();
-                    ansi_seq += c;
-                    std::cerr << "Received [, transitioning to CSI state" << std::endl;
-                } else if (c == 'c') {
-                    std::cerr << "Received ESC c, processing reset" << std::endl;
-                    parse_ansi_sequence("", c);
-                    state = AnsiState::NORMAL;
-                    ansi_seq.clear();
-                    for (int r = 0; r < term_rows; ++r) {
-                        dirty_rows.push_back(r);
-                    }
-                } else {
-                    std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL" << std::endl;
-                    state = AnsiState::NORMAL;
-                    ansi_seq.clear();
-                }
-                break;
-
-            case AnsiState::CSI:
+        case AnsiState::ESCAPE:
+            if (c == '[') {
+                state = AnsiState::CSI;
+                ansi_seq.clear();
                 ansi_seq += c;
-                if (std::isalpha(c)) {
-                    std::cerr << "Received CSI final char: " << c << std::endl;
-                    parse_ansi_sequence(ansi_seq, c);
-                    state = AnsiState::NORMAL;
-                    ansi_seq.clear();
-                    dirty_rows.push_back(cursor.row);
+                //std::cerr << "Received [, transitioning to CSI state" << std::endl;
+            } else if (c == 'c') {
+                //std::cerr << "Received ESC c, processing reset" << std::endl;
+                parse_ansi_sequence("", c);
+                state = AnsiState::NORMAL;
+                ansi_seq.clear();
+                for (int r = 0; r < term_rows; ++r) {
+                    dirty_rows.push_back(r);
                 }
-                break;
+            } else {
+                //std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL" << std::endl;
+                state = AnsiState::NORMAL;
+                ansi_seq.clear();
+            }
+            break;
+
+        case AnsiState::CSI:
+            ansi_seq += c;
+            if (std::isalpha(c)) {
+                //std::cerr << "Received CSI final char: " << c << std::endl;
+                parse_ansi_sequence(ansi_seq, c);
+                state = AnsiState::NORMAL;
+                ansi_seq.clear();
+                dirty_rows.push_back(cursor.row);
+            }
+            break;
         }
     }
     // Remove duplicates
@@ -144,90 +148,144 @@ std::vector<int> TerminalLogic::process_input(const char* buffer, size_t length)
     return dirty_rows;
 }
 
-std::string TerminalLogic::process_key(uint32_t keycode, uint16_t modifiers) {
+std::string TerminalLogic::process_key(uint32_t keycode, uint16_t modifiers)
+{
     std::string input;
-    std::cerr << "Key processed: Keycode=" << keycode << ", Modifiers=" << modifiers << std::endl;
+    //std::cerr << "Key processed: Keycode=" << keycode << ", Modifiers=" << modifiers << std::endl;
 
     // Map SDL keycodes to terminal inputs
     switch (keycode) {
-        case 13:  input = "\n"; break;      // SDLK_RETURN
-        case 8:   input = "\b"; break;      // SDLK_BACKSPACE
-        case 9:   input = "\t"; break;      // SDLK_TAB
-        case 273: input = "\033[A"; break;  // SDLK_UP
-        case 274: input = "\033[B"; break;  // SDLK_DOWN
-        case 275: input = "\033[C"; break;  // SDLK_RIGHT
-        case 276: input = "\033[D"; break;  // SDLK_LEFT
-        case 278: input = "\033[H"; break;  // SDLK_HOME
-        case 279: input = "\033[F"; break;  // SDLK_END
-        case 277: input = "\033[2~"; break; // SDLK_INSERT
-        case 127: input = "\033[3~"; break; // SDLK_DELETE
-        case 280: input = "\033[5~"; break; // SDLK_PAGEUP
-        case 281: input = "\033[6~"; break; // SDLK_PAGEDOWN
-        case 282: input = "\033[11~"; break; // SDLK_F1
-        case 283: input = "\033[12~"; break; // SDLK_F2
-        case 284: input = "\033[13~"; break; // SDLK_F3
-        case 285: input = "\033[14~"; break; // SDLK_F4
-        case 286: input = "\033[15~"; break; // SDLK_F5
-        case 287: input = "\033[17~"; break; // SDLK_F6
-        case 288: input = "\033[18~"; break; // SDLK_F7
-        case 289: input = "\033[19~"; break; // SDLK_F8
-        case 290: input = "\033[20~"; break; // SDLK_F9
-        case 291: input = "\033[21~"; break; // SDLK_F10
-        case 292: input = "\033[23~"; break; // SDLK_F11
-        case 293: input = "\033[24~"; break; // SDLK_F12
-        default:
-            if (modifiers & 0x1000) { // KMOD_CTRL
-                if (keycode >= 'a' && keycode <= 'z') {
-                    char ctrl_char = (keycode - 'a') + 1;
-                    input = std::string(1, ctrl_char);
-                }
-            } else if (keycode >= 'a' && keycode <= 'z') {
-                char base_char = keycode;
-                if (modifiers & 0x0001) { // KMOD_SHIFT
-                    base_char = std::toupper(base_char);
-                }
-                input = std::string(1, base_char);
-            } else if (keycode >= 32 && keycode <= 126) {
-                char base_char = keycode;
-                if (modifiers & 0x0001) { // KMOD_SHIFT
-                    static const std::map<char, char> shift_map = {
-                        {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
-                        {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
-                        {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'}, {';', ':'},
-                        {'\'', '"'}, {',', '<'}, {'.', '>'}, {'/', '?'}, {'`', '~'}
-                    };
-                    auto it = shift_map.find(base_char);
-                    if (it != shift_map.end()) {
-                        base_char = it->second;
-                    }
-                }
-                input = std::string(1, base_char);
+    case 13:
+        input = "\n";
+        break; // SDLK_RETURN
+    case 8:
+        input = "\b";
+        break; // SDLK_BACKSPACE
+    case 9:
+        input = "\t";
+        break; // SDLK_TAB
+    case 273:
+        input = "\033[A";
+        break; // SDLK_UP
+    case 274:
+        input = "\033[B";
+        break; // SDLK_DOWN
+    case 275:
+        input = "\033[C";
+        break; // SDLK_RIGHT
+    case 276:
+        input = "\033[D";
+        break; // SDLK_LEFT
+    case 278:
+        input = "\033[H";
+        break; // SDLK_HOME
+    case 279:
+        input = "\033[F";
+        break; // SDLK_END
+    case 277:
+        input = "\033[2~";
+        break; // SDLK_INSERT
+    case 127:
+        input = "\033[3~";
+        break; // SDLK_DELETE
+    case 280:
+        input = "\033[5~";
+        break; // SDLK_PAGEUP
+    case 281:
+        input = "\033[6~";
+        break; // SDLK_PAGEDOWN
+    case 282:
+        input = "\033[11~";
+        break; // SDLK_F1
+    case 283:
+        input = "\033[12~";
+        break; // SDLK_F2
+    case 284:
+        input = "\033[13~";
+        break; // SDLK_F3
+    case 285:
+        input = "\033[14~";
+        break; // SDLK_F4
+    case 286:
+        input = "\033[15~";
+        break; // SDLK_F5
+    case 287:
+        input = "\033[17~";
+        break; // SDLK_F6
+    case 288:
+        input = "\033[18~";
+        break; // SDLK_F7
+    case 289:
+        input = "\033[19~";
+        break; // SDLK_F8
+    case 290:
+        input = "\033[20~";
+        break; // SDLK_F9
+    case 291:
+        input = "\033[21~";
+        break; // SDLK_F10
+    case 292:
+        input = "\033[23~";
+        break; // SDLK_F11
+    case 293:
+        input = "\033[24~";
+        break; // SDLK_F12
+    default:
+        if (modifiers & 0x1000) { // KMOD_CTRL
+            if (keycode >= 'a' && keycode <= 'z') {
+                char ctrl_char = (keycode - 'a') + 1;
+                input          = std::string(1, ctrl_char);
             }
-            break;
+        } else if (keycode >= 'a' && keycode <= 'z') {
+            char base_char = keycode;
+            if (modifiers & 0x0001) { // KMOD_SHIFT
+                base_char = std::toupper(base_char);
+            }
+            input = std::string(1, base_char);
+        } else if (keycode >= 32 && keycode <= 126) {
+            char base_char = keycode;
+            if (modifiers & 0x0001) { // KMOD_SHIFT
+                static const std::map<char, char> shift_map = {
+                    { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
+                    { '6', '^' },  { '7', '&' }, { '8', '*' }, { '9', '(' }, { '0', ')' },
+                    { '-', '_' },  { '=', '+' }, { '[', '{' }, { ']', '}' }, { ';', ':' },
+                    { '\'', '"' }, { ',', '<' }, { '.', '>' }, { '/', '?' }, { '`', '~' }
+                };
+                auto it = shift_map.find(base_char);
+                if (it != shift_map.end()) {
+                    base_char = it->second;
+                }
+            }
+            input = std::string(1, base_char);
+        }
+        break;
     }
     return input;
 }
 
-const std::vector<std::vector<Char>>& TerminalLogic::get_text_buffer() const {
+const std::vector<std::vector<Char>> &TerminalLogic::get_text_buffer() const
+{
     return text_buffer;
 }
 
-const Cursor& TerminalLogic::get_cursor() const {
+const Cursor &TerminalLogic::get_cursor() const
+{
     return cursor;
 }
 
-void TerminalLogic::parse_ansi_sequence(const std::string& seq, char final_char) {
+void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
+{
     if (final_char == 'c') {
         reset_state();
         return;
     }
 
     if (seq.empty() || seq[0] != '[') {
-        std::cerr << "Invalid CSI sequence: " << seq << final_char << std::endl;
+        //std::cerr << "Invalid CSI sequence: " << seq << final_char << std::endl;
         return;
     }
 
-    std::cerr << "Processing CSI sequence: " << seq << final_char << std::endl;
+    //std::cerr << "Processing CSI sequence: " << seq << final_char << std::endl;
 
     std::vector<int> params;
     std::string param_str;
@@ -239,8 +297,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string& seq, char final_char)
             if (!param_str.empty()) {
                 try {
                     params.push_back(std::stoi(param_str));
-                } catch (const std::exception& e) {
-                    std::cerr << "Error parsing parameter '" << param_str << "': " << e.what() << std::endl;
+                } catch (const std::exception &e) {
+                    //std::cerr << "Error parsing parameter '" << param_str << "': " << e.what() << std::endl;
                     params.push_back(0);
                 }
                 param_str.clear();
@@ -252,8 +310,8 @@ void TerminalLogic::parse_ansi_sequence(const std::string& seq, char final_char)
     if (!param_str.empty()) {
         try {
             params.push_back(std::stoi(param_str));
-        } catch (const std::exception& e) {
-            std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what() << std::endl;
+        } catch (const std::exception &e) {
+            //std::cerr << "Error parsing final parameter '" << param_str << "': " << e.what() << std::endl;
             params.push_back(0);
         }
     }
@@ -261,116 +319,118 @@ void TerminalLogic::parse_ansi_sequence(const std::string& seq, char final_char)
     handle_csi_sequence(seq, final_char, params);
 }
 
-void TerminalLogic::handle_csi_sequence(const std::string& seq, char final_char, const std::vector<int>& params) {
+void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
+                                        const std::vector<int> &params)
+{
     switch (final_char) {
-        case 'm':
-            for (size_t i = 0; i < params.size(); ++i) {
-                int p = params[i];
-                if (p == 0) {
-                    current_attr = CharAttr();
-                } else if (p >= 30 && p <= 37) {
-                    current_attr.fg_r = ansi_colors[p - 30].fg_r;
-                    current_attr.fg_g = ansi_colors[p - 30].fg_g;
-                    current_attr.fg_b = ansi_colors[p - 30].fg_b;
-                } else if (p >= 40 && p <= 47) {
-                    current_attr.bg_r = ansi_colors[p - 40].bg_r;
-                    current_attr.bg_g = ansi_colors[p - 40].bg_g;
-                    current_attr.bg_b = ansi_colors[p - 40].bg_b;
-                } else if (p >= 90 && p <= 97) {
-                    current_attr.fg_r = ansi_colors[p - 90].fg_r;
-                    current_attr.fg_g = ansi_colors[p - 90].fg_g;
-                    current_attr.fg_b = ansi_colors[p - 90].fg_b;
-                } else if (p >= 100 && p <= 107) {
-                    current_attr.bg_r = ansi_colors[p - 100].bg_r;
-                    current_attr.bg_g = ansi_colors[p - 100].bg_g;
-                    current_attr.bg_b = ansi_colors[p - 100].bg_b;
+    case 'm':
+        for (size_t i = 0; i < params.size(); ++i) {
+            int p = params[i];
+            if (p == 0) {
+                current_attr = CharAttr();
+            } else if (p >= 30 && p <= 37) {
+                current_attr.fg_r = ansi_colors[p - 30].fg_r;
+                current_attr.fg_g = ansi_colors[p - 30].fg_g;
+                current_attr.fg_b = ansi_colors[p - 30].fg_b;
+            } else if (p >= 40 && p <= 47) {
+                current_attr.bg_r = ansi_colors[p - 40].bg_r;
+                current_attr.bg_g = ansi_colors[p - 40].bg_g;
+                current_attr.bg_b = ansi_colors[p - 40].bg_b;
+            } else if (p >= 90 && p <= 97) {
+                current_attr.fg_r = ansi_colors[p - 90].fg_r;
+                current_attr.fg_g = ansi_colors[p - 90].fg_g;
+                current_attr.fg_b = ansi_colors[p - 90].fg_b;
+            } else if (p >= 100 && p <= 107) {
+                current_attr.bg_r = ansi_colors[p - 100].bg_r;
+                current_attr.bg_g = ansi_colors[p - 100].bg_g;
+                current_attr.bg_b = ansi_colors[p - 100].bg_b;
+            }
+        }
+        break;
+
+    case 'H': {
+        int row    = (params.size() > 0 ? params[0] : 1) - 1;
+        int col    = (params.size() > 1 ? params[1] : 1) - 1;
+        cursor.row = std::max(0, std::min(row, term_rows - 1));
+        cursor.col = std::max(0, std::min(col, term_cols - 1));
+        break;
+    }
+
+    case 'A':
+        cursor.row = std::max(0, cursor.row - (params.empty() ? 1 : params[0]));
+        break;
+
+    case 'B':
+        cursor.row = std::min(term_rows - 1, cursor.row + (params.empty() ? 1 : params[0]));
+        break;
+
+    case 'C':
+        cursor.col = std::min(term_cols - 1, cursor.col + (params.empty() ? 1 : params[0]));
+        break;
+
+    case 'D':
+        cursor.col = std::max(0, cursor.col - (params.empty() ? 1 : params[0]));
+        break;
+
+    case 'J': {
+        int mode = params.empty() ? 0 : params[0];
+        if (mode == 0 || mode == 2) {
+            for (int r = cursor.row; r < term_rows; ++r) {
+                for (int c = (r == cursor.row ? cursor.col : 0); c < term_cols; ++c) {
+                    text_buffer[r][c] = { ' ', current_attr };
                 }
             }
-            break;
-
-        case 'H':
-        {
-            int row = (params.size() > 0 ? params[0] : 1) - 1;
-            int col = (params.size() > 1 ? params[1] : 1) - 1;
-            cursor.row = std::max(0, std::min(row, term_rows - 1));
-            cursor.col = std::max(0, std::min(col, term_cols - 1));
-            break;
         }
+        break;
+    }
 
-        case 'A':
-            cursor.row = std::max(0, cursor.row - (params.empty() ? 1 : params[0]));
-            break;
-
-        case 'B':
-            cursor.row = std::min(term_rows - 1, cursor.row + (params.empty() ? 1 : params[0]));
-            break;
-
-        case 'C':
-            cursor.col = std::min(term_cols - 1, cursor.col + (params.empty() ? 1 : params[0]));
-            break;
-
-        case 'D':
-            cursor.col = std::max(0, cursor.col - (params.empty() ? 1 : params[0]));
-            break;
-
-        case 'J':
-        {
-            int mode = params.empty() ? 0 : params[0];
-            if (mode == 0 || mode == 2) {
-                for (int r = cursor.row; r < term_rows; ++r) {
-                    for (int c = (r == cursor.row ? cursor.col : 0); c < term_cols; ++c) {
-                        text_buffer[r][c] = {' ', current_attr};
-                    }
-                }
+    case 'K': {
+        int mode = params.empty() ? 0 : params[0];
+        //std::cerr << "Processing ESC [ " << mode << "K" << std::endl;
+        switch (mode) {
+        case 0:
+            for (int c = cursor.col; c < term_cols; ++c) {
+                text_buffer[cursor.row][c] = { ' ', current_attr };
             }
             break;
-        }
-
-        case 'K':
-        {
-            int mode = params.empty() ? 0 : params[0];
-            std::cerr << "Processing ESC [ " << mode << "K" << std::endl;
-            switch (mode) {
-                case 0:
-                    for (int c = cursor.col; c < term_cols; ++c) {
-                        text_buffer[cursor.row][c] = {' ', current_attr};
-                    }
-                    break;
-                case 1:
-                    for (int c = 0; c <= cursor.col; ++c) {
-                        text_buffer[cursor.row][c] = {' ', current_attr};
-                    }
-                    break;
-                case 2:
-                    for (int c = 0; c < term_cols; ++c) {
-                        text_buffer[cursor.row][c] = {' ', current_attr};
-                    }
-                    break;
-                default:
-                    std::cerr << "Unknown EL mode: " << mode << std::endl;
-                    break;
+        case 1:
+            for (int c = 0; c <= cursor.col; ++c) {
+                text_buffer[cursor.row][c] = { ' ', current_attr };
             }
             break;
+        case 2:
+            for (int c = 0; c < term_cols; ++c) {
+                text_buffer[cursor.row][c] = { ' ', current_attr };
+            }
+            break;
+        default:
+            //std::cerr << "Unknown EL mode: " << mode << std::endl;
+            break;
         }
+        break;
+    }
     }
 }
 
-void TerminalLogic::clear_screen() {
+void TerminalLogic::clear_screen()
+{
     for (int r = 0; r < term_rows; ++r) {
-        text_buffer[r] = std::vector<Char>(term_cols, {' ', current_attr});
+        text_buffer[r] = std::vector<Char>(term_cols, { ' ', current_attr });
     }
 }
 
-void TerminalLogic::reset_state() {
-    std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
+void TerminalLogic::reset_state()
+{
+    //std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
     current_attr = CharAttr();
-    cursor.row = 0;
-    cursor.col = 0;
+    cursor.row   = 0;
+    cursor.col   = 0;
     clear_screen();
 }
 
-void TerminalLogic::scroll_up() {
+void TerminalLogic::scroll_up()
+{
     text_buffer.erase(text_buffer.begin());
-    text_buffer.push_back(std::vector<Char>(term_cols, {' ', current_attr}));
+    text_buffer.push_back(std::vector<Char>(term_cols, { ' ', current_attr }));
     cursor.row--;
 }

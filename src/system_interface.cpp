@@ -38,9 +38,7 @@
 static SystemInterface *interface_instance = nullptr;
 
 SystemInterface::SystemInterface(int cols, int rows)
-    : term_cols(cols), term_rows(rows), window(nullptr), renderer(nullptr), font(nullptr),
-      char_width(0), char_height(0), cursor_visible(true), last_cursor_toggle(0), master_fd(-1),
-      child_pid(0), font_size(16), terminal_logic(cols, rows)
+    : term_cols(cols), term_rows(rows), terminal_logic(cols, rows)
 {
     interface_instance = this;
 #ifdef __APPLE__
@@ -62,7 +60,7 @@ SystemInterface::~SystemInterface()
     for (auto &line_spans : texture_cache) {
         for (auto &span : line_spans) {
             if (span.texture)
-                SDL_DestroyTexture(span.texture);
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
         }
     }
     if (renderer)
@@ -101,24 +99,18 @@ bool SystemInterface::initialize_sdl()
     }
     if (TTF_Init() < 0) {
         std::cerr << "TTF_Init failed: " << TTF_GetError() << std::endl;
-        SDL_Quit();
         return false;
     }
 
     font = TTF_OpenFont(font_path.c_str(), font_size);
     if (!font) {
         std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
     TTF_SizeText(font, "M", &char_width, &char_height);
     if (char_width == 0 || char_height == 0) {
         std::cerr << "Failed to get font metrics" << std::endl;
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
@@ -126,20 +118,13 @@ bool SystemInterface::initialize_sdl()
                               term_cols * char_width, term_rows * char_height,
                               SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
-        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
+        std::cerr << "Cannot access GUI display. Please ensure a graphical environment is available.\n";
         return false;
     }
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << std::endl;
-        SDL_DestroyWindow(window);
-        TTF_CloseFont(font);
-        TTF_Quit();
-        SDL_Quit();
         return false;
     }
 
@@ -169,15 +154,6 @@ bool SystemInterface::initialize_pty(struct termios &slave_termios, char *&slave
     slave_termios.c_lflag |= ISIG;
     slave_termios.c_iflag |= ICRNL;
     slave_termios.c_oflag |= OPOST | ONLCR;
-
-    struct winsize ws;
-    ws.ws_col    = term_cols;
-    ws.ws_row    = term_rows;
-    ws.ws_xpixel = term_cols * char_width;
-    ws.ws_ypixel = term_rows * char_height;
-    if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
-        std::cerr << "Error setting initial slave window size: " << strerror(errno) << std::endl;
-    }
 
     fcntl(master_fd, F_SETFL, O_NONBLOCK);
     return true;
@@ -276,7 +252,7 @@ void SystemInterface::update_texture_cache()
 
         for (auto &span : texture_cache[i]) {
             if (span.texture)
-                SDL_DestroyTexture(span.texture);
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
         }
         texture_cache[i].clear();
 
@@ -295,8 +271,9 @@ void SystemInterface::update_texture_cache()
                     span.attr      = current_span_attr;
                     span.start_col = start_col;
 
-                    SDL_Surface *surface =
-                        TTF_RenderText_Blended(font, current_text.c_str(), current_span_attr.fg);
+                    SDL_Color fg         = { current_span_attr.fg_r, current_span_attr.fg_g,
+                                             current_span_attr.fg_b, current_span_attr.fg_a };
+                    SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
                     if (surface) {
                         span.texture = SDL_CreateTextureFromSurface(renderer, surface);
                         SDL_FreeSurface(surface);
@@ -315,8 +292,9 @@ void SystemInterface::update_texture_cache()
             span.attr      = current_span_attr;
             span.start_col = start_col;
 
-            SDL_Surface *surface =
-                TTF_RenderText_Blended(font, current_text.c_str(), current_span_attr.fg);
+            SDL_Color fg = { current_span_attr.fg_r, current_span_attr.fg_g, current_span_attr.fg_b,
+                             current_span_attr.fg_a };
+            SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
             if (surface) {
                 span.texture = SDL_CreateTextureFromSurface(renderer, surface);
                 SDL_FreeSurface(surface);
@@ -338,16 +316,16 @@ void SystemInterface::render_spans()
             if (!span.texture)
                 continue;
 
-            SDL_SetRenderDrawColor(renderer, span.attr.bg.r, span.attr.bg.g, span.attr.bg.b,
-                                   span.attr.bg.a);
+            SDL_SetRenderDrawColor(renderer, span.attr.bg_r, span.attr.bg_g, span.attr.bg_b,
+                                   span.attr.bg_a);
             SDL_Rect bg_rect = { span.start_col * char_width, static_cast<int>(i * char_height),
                                  static_cast<int>(span.text.length() * char_width), char_height };
             SDL_RenderFillRect(renderer, &bg_rect);
 
             int w, h;
-            SDL_QueryTexture(span.texture, nullptr, nullptr, &w, &h);
+            SDL_QueryTexture(static_cast<SDL_Texture *>(span.texture), nullptr, nullptr, &w, &h);
             SDL_Rect dst = { span.start_col * char_width, static_cast<int>(i * char_height), w, h };
-            SDL_RenderCopy(renderer, span.texture, nullptr, &dst);
+            SDL_RenderCopy(renderer, static_cast<SDL_Texture *>(span.texture), nullptr, &dst);
         }
     }
 }
@@ -412,20 +390,20 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
 #ifdef __APPLE__
     if (mod & KMOD_GUI) {
         if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(2); // Cmd+=
+            change_font_size(1); // Cmd+=
             return;
         } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-2); // Cmd+-
+            change_font_size(-1); // Cmd+-
             return;
         }
     }
 #else
     if (mod & KMOD_CTRL) {
         if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(2); // Ctrl+=
+            change_font_size(1); // Ctrl+=
             return;
         } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-2); // Ctrl+-
+            change_font_size(-1); // Ctrl+-
             return;
         }
     }
@@ -434,11 +412,11 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
     // Forward key to TerminalLogic
     std::string input = terminal_logic.process_key(key.keysym.sym, mod);
     if (!input.empty()) {
-        std::cerr << "Sending input: ";
-        for (char c : input) {
-            std::cerr << (int)c << " ";
-        }
-        std::cerr << std::endl;
+        //std::cerr << "Sending input: ";
+        //for (char c : input) {
+        //    std::cerr << (int)c << " ";
+        //}
+        //std::cerr << std::endl;
         write(master_fd, input.c_str(), input.size());
     }
 
@@ -456,7 +434,7 @@ void SystemInterface::change_font_size(int delta)
 {
     int new_size = font_size + delta;
     if (new_size < 8 || new_size > 72) {
-        std::cerr << "Font size out of range: " << new_size << std::endl;
+        //std::cerr << "Font size out of range: " << new_size << std::endl;
         return;
     }
 
@@ -486,14 +464,14 @@ void SystemInterface::change_font_size(int delta)
         return;
     }
 
+    SDL_SetWindowSize(window, term_cols * char_width, term_rows * char_height);
+
     int win_width, win_height;
     SDL_GetWindowSize(window, &win_width, &win_height);
     int new_cols = std::max(win_width / char_width, 1);
     int new_rows = std::max(win_height / char_height, 1);
     term_cols    = new_cols;
     term_rows    = new_rows;
-
-    SDL_SetWindowSize(window, term_cols * char_width, term_rows * char_height);
 
     struct winsize ws;
     ws.ws_col    = term_cols;
@@ -503,7 +481,7 @@ void SystemInterface::change_font_size(int delta)
     if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
         std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
     } else {
-        std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
+        //std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
     }
 
     if (child_pid > 0) {
@@ -514,14 +492,14 @@ void SystemInterface::change_font_size(int delta)
     for (auto &line_spans : texture_cache) {
         for (auto &span : line_spans) {
             if (span.texture)
-                SDL_DestroyTexture(span.texture);
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
         }
     }
     texture_cache.resize(term_rows);
     dirty_lines.resize(term_rows, true);
 
-    std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols << "x"
-              << term_rows << std::endl;
+    //std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols << "x"
+    //          << term_rows << std::endl;
 }
 
 void SystemInterface::process_pty_input()
@@ -546,11 +524,11 @@ void SystemInterface::process_pty_input()
         }
 
         buffer[bytes] = '\0';
-        std::cerr << "Read " << bytes << " bytes: ";
-        for (ssize_t j = 0; j < bytes; ++j) {
-            std::cerr << (int)buffer[j] << " ";
-        }
-        std::cerr << std::endl;
+        //std::cerr << "Read " << bytes << " bytes: ";
+        //for (ssize_t j = 0; j < bytes; ++j) {
+        //    std::cerr << (int)buffer[j] << " ";
+        //}
+        //std::cerr << std::endl;
 
         // Process input through TerminalLogic
         auto dirty_rows = terminal_logic.process_input(buffer, bytes);
@@ -594,7 +572,7 @@ void SystemInterface::handle_sigwinch(int sig)
         for (auto &line_spans : interface_instance->texture_cache) {
             for (auto &span : line_spans) {
                 if (span.texture)
-                    SDL_DestroyTexture(span.texture);
+                    SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
             }
         }
         interface_instance->texture_cache.resize(new_rows);

@@ -51,22 +51,22 @@ private:
     int term_rows;
     std::vector<std::vector<TextSpan>> texture_cache;
     std::vector<bool> dirty_lines;
-    int font_size;
+    int font_size{ 16 };   // Current font size in points
     std::string font_path;
 
     // SDL resources
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    TTF_Font *font;
-    int char_width;
-    int char_height;
-    bool cursor_visible;
-    Uint32 last_cursor_toggle;
+    SDL_Window *window{};
+    SDL_Renderer *renderer{};
+    TTF_Font *font{};
+    int char_width{};
+    int char_height{};
+    bool cursor_visible{ true };
+    Uint32 last_cursor_toggle{};
     static const Uint32 cursor_blink_interval = 500;
 
     // PTY and child process
-    int master_fd;
-    pid_t child_pid;
+    int master_fd{ -1 };
+    pid_t child_pid{};
 
     // Terminal logic
     TerminalLogic terminal_logic;
