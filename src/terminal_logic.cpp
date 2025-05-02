@@ -41,16 +41,16 @@ const CharAttr TerminalLogic::ansi_colors[] = {
 TerminalLogic::TerminalLogic(int cols, int rows)
     : term_cols(cols), term_rows(rows), state(AnsiState::NORMAL)
 {
-    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { ' ', current_attr }));
+    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { L' ', current_attr }));
 }
 
 void TerminalLogic::resize(int new_cols, int new_rows)
 {
     term_cols = new_cols;
     term_rows = new_rows;
-    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { ' ', current_attr }));
+    text_buffer.resize(term_rows, std::vector<Char>(term_cols, { L' ', current_attr }));
     for (auto &line : text_buffer) {
-        line.resize(term_cols, { ' ', current_attr });
+        line.resize(term_cols, { L' ', current_attr });
     }
     cursor.row = std::min(cursor.row, term_rows - 1);
     cursor.col = std::min(cursor.col, term_cols - 1);
@@ -59,15 +59,16 @@ void TerminalLogic::resize(int new_cols, int new_rows)
 std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
 {
     std::vector<int> dirty_rows;
-    for (size_t i = 0; i < length; ++i) {
-        char c = buffer[i];
+    size_t i = 0;
+    while (i < length) {
         switch (state) {
-        case AnsiState::NORMAL:
-            if (c == '\033') {
+        case AnsiState::NORMAL: {
+            if (buffer[i] == '\033') {
                 state = AnsiState::ESCAPE;
                 ansi_seq.clear();
                 //std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
-            } else if (c == '\n') {
+                ++i;
+            } else if (buffer[i] == '\n') {
                 cursor.row++;
                 cursor.col = 0;
                 if (cursor.row >= term_rows) {
@@ -78,7 +79,8 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 } else {
                     dirty_rows.push_back(cursor.row);
                 }
-            } else if (c == '\r') {
+                ++i;
+            } else if (buffer[i] == '\r') {
                 cursor.col = 0;
                 if (i + 1 < length && buffer[i + 1] == '\n') {
                     ++i;
@@ -94,15 +96,40 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                 } else {
                     dirty_rows.push_back(cursor.row);
                 }
-            } else if (c == '\b') {
+                ++i;
+            } else if (buffer[i] == '\b') {
                 if (cursor.col > 0) {
                     cursor.col--;
-                    text_buffer[cursor.row][cursor.col] = { ' ', current_attr };
+                    text_buffer[cursor.row][cursor.col] = { L' ', current_attr };
                     dirty_rows.push_back(cursor.row);
                 }
-            } else if (c >= 32 && c <= 126) {
+                ++i;
+            } else {
+                // Decode UTF-8 sequence
+                wchar_t ch = 0;
+                int bytes  = 0;
+                if ((buffer[i] & 0x80) == 0) { // 1-byte (ASCII)
+                    ch    = buffer[i];
+                    bytes = 1;
+                } else if ((buffer[i] & 0xE0) == 0xC0 && i + 1 < length) { // 2-byte
+                    ch    = ((buffer[i] & 0x1F) << 6) | (buffer[i + 1] & 0x3F);
+                    bytes = 2;
+                } else if ((buffer[i] & 0xF0) == 0xE0 && i + 2 < length) { // 3-byte
+                    ch = ((buffer[i] & 0x0F) << 12) | ((buffer[i + 1] & 0x3F) << 6) |
+                         (buffer[i + 2] & 0x3F);
+                    bytes = 3;
+                } else if ((buffer[i] & 0xF8) == 0xF0 && i + 3 < length) { // 4-byte
+                    ch = ((buffer[i] & 0x07) << 18) | ((buffer[i + 1] & 0x3F) << 12) |
+                         ((buffer[i + 2] & 0x3F) << 6) | (buffer[i + 3] & 0x3F);
+                    bytes = 4;
+                } else {
+                    // Invalid UTF-8, skip
+                    ++i;
+                    continue;
+                }
+
                 if (cursor.col < term_cols && cursor.row < term_rows) {
-                    text_buffer[cursor.row][cursor.col] = { c, current_attr };
+                    text_buffer[cursor.row][cursor.col] = { ch, current_attr };
                     cursor.col++;
                     dirty_rows.push_back(cursor.row);
                 }
@@ -116,40 +143,60 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
                         }
                     }
                 }
+                i += bytes;
             }
             break;
+        }
 
         case AnsiState::ESCAPE:
-            if (c == '[') {
+            if (buffer[i] == '[') {
                 state = AnsiState::CSI;
                 ansi_seq.clear();
-                ansi_seq += c;
+                ansi_seq += buffer[i];
                 //std::cerr << "Received [, transitioning to CSI state" << std::endl;
-            } else if (c == 'c') {
+            } else if (buffer[i] == 'c') {
                 //std::cerr << "Received ESC c, processing reset" << std::endl;
-                parse_ansi_sequence("", c);
+                parse_ansi_sequence("", buffer[i], dirty_rows);
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
                 for (int r = 0; r < term_rows; ++r) {
                     dirty_rows.push_back(r);
                 }
             } else {
-                //std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL"
-                //          << std::endl;
+                //std::cerr << "Unknown ESC sequence char: " << (int)buffer[i]
+                //          << ", resetting to NORMAL" << std::endl;
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
             }
+            ++i;
             break;
 
         case AnsiState::CSI:
-            ansi_seq += c;
-            if (std::isalpha(c)) {
-                //std::cerr << "Received CSI final char: " << c << std::endl;
-                parse_ansi_sequence(ansi_seq, c);
-                state = AnsiState::NORMAL;
+            ansi_seq += buffer[i];
+            if (std::isalpha(buffer[i])) {
+                //std::cerr << "Received CSI final char: " << buffer[i] << std::endl;
+                int mode = parse_ansi_sequence(ansi_seq, buffer[i], dirty_rows);
+                state    = AnsiState::NORMAL;
                 ansi_seq.clear();
-                dirty_rows.push_back(cursor.row);
+                if (buffer[i] == 'J') {
+                    if (mode == 0) {
+                        for (int r = cursor.row; r < term_rows; ++r) {
+                            dirty_rows.push_back(r);
+                        }
+                    } else if (mode == 1) {
+                        for (int r = 0; r <= cursor.row; ++r) {
+                            dirty_rows.push_back(r);
+                        }
+                    } else if (mode == 2) {
+                        for (int r = 0; r < term_rows; ++r) {
+                            dirty_rows.push_back(r);
+                        }
+                    }
+                } else {
+                    dirty_rows.push_back(cursor.row);
+                }
             }
+            ++i;
             break;
         }
     }
@@ -159,102 +206,103 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
     return dirty_rows;
 }
 
-std::string TerminalLogic::process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl)
+std::string TerminalLogic::process_key(KeyCode keycode, bool mod_shift, bool mod_ctrl, char character)
 {
     std::string input;
-    //std::cerr << "Key processed: Keycode=" << keycode << ", Modifiers=" << modifiers << std::endl;
+    //std::cerr << "Key processed: Keycode=" << static_cast<int>(keycode)
+    //          << ", Modifiers=" << modifiers << ", Char=" << (int)character << std::endl;
 
-    // Map SDL keycodes to terminal inputs
+    // Map keycodes to terminal inputs
     switch (keycode) {
-    case 13:
+    case KeyCode::RETURN:
         input = "\r";
-        break; // SDLK_RETURN
-    case 8:
+        break;
+    case KeyCode::BACKSPACE:
         input = "\b";
-        break; // SDLK_BACKSPACE
-    case 9:
+        break;
+    case KeyCode::TAB:
         input = "\t";
-        break; // SDLK_TAB
-    case 273:
+        break;
+    case KeyCode::UP:
         input = "\033[A";
-        break; // SDLK_UP
-    case 274:
+        break;
+    case KeyCode::DOWN:
         input = "\033[B";
-        break; // SDLK_DOWN
-    case 275:
+        break;
+    case KeyCode::RIGHT:
         input = "\033[C";
-        break; // SDLK_RIGHT
-    case 276:
+        break;
+    case KeyCode::LEFT:
         input = "\033[D";
-        break; // SDLK_LEFT
-    case 278:
+        break;
+    case KeyCode::HOME:
         input = "\033[H";
-        break; // SDLK_HOME
-    case 279:
+        break;
+    case KeyCode::END:
         input = "\033[F";
-        break; // SDLK_END
-    case 277:
+        break;
+    case KeyCode::INSERT:
         input = "\033[2~";
-        break; // SDLK_INSERT
-    case 127:
+        break;
+    case KeyCode::DELETE:
         input = "\033[3~";
-        break; // SDLK_DELETE
-    case 280:
+        break;
+    case KeyCode::PAGEUP:
         input = "\033[5~";
-        break; // SDLK_PAGEUP
-    case 281:
+        break;
+    case KeyCode::PAGEDOWN:
         input = "\033[6~";
-        break; // SDLK_PAGEDOWN
-    case 282:
+        break;
+    case KeyCode::F1:
         input = "\033[11~";
-        break; // SDLK_F1
-    case 283:
+        break;
+    case KeyCode::F2:
         input = "\033[12~";
-        break; // SDLK_F2
-    case 284:
+        break;
+    case KeyCode::F3:
         input = "\033[13~";
-        break; // SDLK_F3
-    case 285:
+        break;
+    case KeyCode::F4:
         input = "\033[14~";
-        break; // SDLK_F4
-    case 286:
+        break;
+    case KeyCode::F5:
         input = "\033[15~";
-        break; // SDLK_F5
-    case 287:
+        break;
+    case KeyCode::F6:
         input = "\033[17~";
-        break; // SDLK_F6
-    case 288:
+        break;
+    case KeyCode::F7:
         input = "\033[18~";
-        break; // SDLK_F7
-    case 289:
+        break;
+    case KeyCode::F8:
         input = "\033[19~";
-        break; // SDLK_F8
-    case 290:
+        break;
+    case KeyCode::F9:
         input = "\033[20~";
-        break; // SDLK_F9
-    case 291:
+        break;
+    case KeyCode::F10:
         input = "\033[21~";
-        break; // SDLK_F10
-    case 292:
+        break;
+    case KeyCode::F11:
         input = "\033[23~";
-        break; // SDLK_F11
-    case 293:
+        break;
+    case KeyCode::F12:
         input = "\033[24~";
-        break; // SDLK_F12
-    default:
+        break;
+    case KeyCode::CHARACTER:
         if (mod_ctrl) {
-            if (keycode >= 'a' && keycode <= 'z') {
-                char ctrl_char = (keycode - 'a') + 1;
+            if (character >= 'a' && character <= 'z') {
+                char ctrl_char = (character - 'a') + 1;
                 input          = std::string(1, ctrl_char);
             }
-        } else if (keycode >= 'a' && keycode <= 'z') {
-            char base_char = keycode;
+        } else if (character >= 'a' && character <= 'z') {
+            char base_char = character;
             if (mod_shift) {
                 base_char = std::toupper(base_char);
             }
             input = std::string(1, base_char);
-        } else if (keycode >= 32 && keycode <= 126) {
-            char base_char = keycode;
+        } else if (character >= 32 && character <= 126) {
+            char base_char = character;
             if (mod_shift) {
                 static const std::map<char, char> shift_map = {
                     { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
@@ -284,16 +332,18 @@ const Cursor &TerminalLogic::get_cursor() const
     return cursor;
 }
 
-void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
+int TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char,
+                                       std::vector<int> &dirty_rows)
 {
+    int mode = 0; // Default mode for J sequences
     if (final_char == 'c') {
         reset_state();
-        return;
+        return mode;
     }
 
     if (seq.empty() || seq[0] != '[') {
         //std::cerr << "Invalid CSI sequence: " << seq << final_char << std::endl;
-        return;
+        return mode;
     }
 
     //std::cerr << "Processing CSI sequence: " << seq << final_char << std::endl;
@@ -329,7 +379,12 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, char final_char)
         }
     }
 
+    if (final_char == 'J' && !params.empty()) {
+        mode = params[0];
+    }
+
     handle_csi_sequence(seq, final_char, params);
+    return mode;
 }
 
 void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
@@ -390,22 +445,22 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
         if (mode == 0) {
             // Clear from cursor to end of screen
             for (int c = cursor.col; c < term_cols; ++c) {
-                text_buffer[cursor.row][c] = { ' ', current_attr };
+                text_buffer[cursor.row][c] = { L' ', current_attr };
             }
             for (int r = cursor.row + 1; r < term_rows; ++r) {
                 for (int c = 0; c < term_cols; ++c) {
-                    text_buffer[r][c] = { ' ', current_attr };
+                    text_buffer[r][c] = { L' ', current_attr };
                 }
             }
         } else if (mode == 1) {
             // Clear from start of screen to cursor
             for (int r = 0; r < cursor.row; ++r) {
                 for (int c = 0; c < term_cols; ++c) {
-                    text_buffer[r][c] = { ' ', current_attr };
+                    text_buffer[r][c] = { L' ', current_attr };
                 }
             }
             for (int c = 0; c <= cursor.col; ++c) {
-                text_buffer[cursor.row][c] = { ' ', current_attr };
+                text_buffer[cursor.row][c] = { L' ', current_attr };
             }
         } else if (mode == 2) {
             clear_screen();
@@ -419,17 +474,17 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
         switch (mode) {
         case 0:
             for (int c = cursor.col; c < term_cols; ++c) {
-                text_buffer[cursor.row][c] = { ' ', current_attr };
+                text_buffer[cursor.row][c] = { L' ', current_attr };
             }
             break;
         case 1:
             for (int c = 0; c <= cursor.col; ++c) {
-                text_buffer[cursor.row][c] = { ' ', current_attr };
+                text_buffer[cursor.row][c] = { L' ', current_attr };
             }
             break;
         case 2:
             for (int c = 0; c < term_cols; ++c) {
-                text_buffer[cursor.row][c] = { ' ', current_attr };
+                text_buffer[cursor.row][c] = { L' ', current_attr };
             }
             break;
         default:
@@ -444,7 +499,7 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
 void TerminalLogic::clear_screen()
 {
     for (int r = 0; r < term_rows; ++r) {
-        text_buffer[r] = std::vector<Char>(term_cols, { ' ', current_attr });
+        text_buffer[r] = std::vector<Char>(term_cols, { L' ', current_attr });
     }
     cursor.row = 0;
     cursor.col = 0;
@@ -460,6 +515,6 @@ void TerminalLogic::reset_state()
 void TerminalLogic::scroll_up()
 {
     text_buffer.erase(text_buffer.begin());
-    text_buffer.push_back(std::vector<Char>(term_cols, { ' ', current_attr }));
+    text_buffer.push_back(std::vector<Char>(term_cols, { L' ', current_attr }));
     cursor.row = term_rows - 1;
 }

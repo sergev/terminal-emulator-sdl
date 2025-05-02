@@ -21,14 +21,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
+#include <SDL2/SDL.h>
+
+#include <iostream>
+
 #include "system_interface.h"
 
-int main()
+int main(int argc, char *argv[])
 {
-    SystemInterface interface(80, 24);
-    if (!interface.initialize()) {
+    try {
+        SystemInterface sys_interface(80, 24);
+
+        // Main loop
+        while (true) {
+            sys_interface.process_sdl_event(); // Handle SDL events (keyboard, window resize, etc.)
+            sys_interface.process_pty_input(); // Handle PTY input (terminal output)
+            sys_interface.render_frame();      // Render the terminal
+            SDL_Delay(10);                     // Prevent excessive CPU usage
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     }
-    interface.run();
+
     return 0;
 }

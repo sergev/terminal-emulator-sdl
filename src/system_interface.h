@@ -24,75 +24,42 @@
 #ifndef SYSTEM_INTERFACE_H
 #define SYSTEM_INTERFACE_H
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-
 #include <string>
 #include <vector>
 
 #include "terminal_logic.h"
 
-#ifdef __linux__
-#include <pty.h>
-#else
-#include <util.h>
-#endif
-
 class SystemInterface {
 public:
     SystemInterface(int cols = 80, int rows = 24);
     ~SystemInterface();
-    bool initialize();
-    void run();
+    void process_pty_input();
+    void process_sdl_event();
+    void render_frame();
+    void resize(int new_cols, int new_rows);
+    int get_cols() const;
+    int get_rows() const;
 
 private:
-    // Terminal state
-    int term_cols;
-    int term_rows;
-    std::vector<std::vector<TextSpan>> texture_cache;
+    TerminalLogic terminal;
+    // SDL and TTF resources
+    void *window   = nullptr; // SDL_Window*
+    void *renderer = nullptr; // SDL_Renderer*
+    void *font     = nullptr; // TTF_Font*
+    int font_size  = 12;
     std::vector<bool> dirty_lines;
-    int font_size{ 16 };   // Current font size in points
-    std::string font_path;
+    std::vector<std::vector<TextSpan>> texture_cache;
 
-    // SDL resources
-    SDL_Window *window{};
-    SDL_Renderer *renderer{};
-    TTF_Font *font{};
-    int char_width{};
-    int char_height{};
-    bool cursor_visible{ true };
-    Uint32 last_cursor_toggle{};
-    static const Uint32 cursor_blink_interval = 500;
+    // PTY handling
+    int pty_fd      = -1;
+    pid_t child_pid = -1;
 
-    // PTY and child process
-    int master_fd{ -1 };
-    pid_t child_pid{};
-
-    // Terminal logic
-    TerminalLogic terminal_logic;
-
-    // Initialization methods
-    bool initialize_sdl();
-    bool initialize_pty(struct termios &slave_termios, char *&slave_name);
-    bool initialize_child_process(const char *slave_name, const struct termios &slave_termios);
-
-    // Rendering methods
-    void render_text();
+    // Private methods
+    void initialize_sdl();
+    void initialize_pty();
     void update_texture_cache();
-    void render_spans();
-    void render_cursor();
-
-    // Input handling methods
-    void handle_events();
-    void handle_key_event(const SDL_KeyboardEvent &key);
-    void change_font_size(int delta);
-
-    // PTY input handling
-    void process_pty_input();
-
-    // Signal handlers
-    static void forward_signal(int sig);
-    static void handle_sigwinch(int sig);
+    void render_text(int row, const std::vector<TextSpan> &spans);
+    void clear_texture_cache();
 };
 
 #endif // SYSTEM_INTERFACE_H

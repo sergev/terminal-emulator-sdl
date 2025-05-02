@@ -24,12 +24,46 @@
 #ifndef TERMINAL_LOGIC_H
 #define TERMINAL_LOGIC_H
 
-#include <gtest/gtest_prod.h>
-
 #include <cstdint>
+#include <cwchar>
 #include <map>
 #include <string>
 #include <vector>
+
+#define ENABLE_GTEST
+#ifdef ENABLE_GTEST
+#include <gtest/gtest_prod.h>
+#endif
+
+// Device-independent keycodes
+enum class KeyCode {
+    RETURN,
+    BACKSPACE,
+    TAB,
+    UP,
+    DOWN,
+    RIGHT,
+    LEFT,
+    HOME,
+    END,
+    INSERT,
+    DELETE,
+    PAGEUP,
+    PAGEDOWN,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    CHARACTER, // For printable characters
+};
 
 // Structure for character attributes
 struct CharAttr {
@@ -46,13 +80,13 @@ struct CharAttr {
 
 // Structure for a single character with attributes
 struct Char {
-    char ch = ' ';
+    wchar_t ch = L' '; // Use wchar_t for Unicode
     CharAttr attr;
 };
 
 // Structure for a span of characters with the same attributes
 struct TextSpan {
-    std::string text;
+    std::wstring text; // Use wstring for Unicode
     CharAttr attr;
     int start_col;
     void *texture = nullptr; // Opaque pointer for SystemInterface
@@ -72,11 +106,12 @@ public:
     TerminalLogic(int cols = 80, int rows = 24);
     void resize(int new_cols, int new_rows);
     std::vector<int> process_input(const char *buffer, size_t length);
-    std::string process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl);
+    std::string process_key(KeyCode keycode, bool mod_shift, bool mod_ctrl, char character = 0);
     const std::vector<std::vector<Char>> &get_text_buffer() const;
     const Cursor &get_cursor() const;
 
 private:
+#ifdef ENABLE_GTEST
     // Declare test cases as friends
     FRIEND_TEST(TerminalLogicTest, EscCResetsStateAndClearsScreen);
     FRIEND_TEST(TerminalLogicTest, EscKClearsLine);
@@ -86,9 +121,12 @@ private:
     FRIEND_TEST(TerminalLogicTest, ControlModifier);
     FRIEND_TEST(TerminalLogicTest, TextBufferInsertion);
     FRIEND_TEST(TerminalLogicTest, ScrollUp);
+    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc2J);
     FRIEND_TEST(TerminalLogicTest, ClearScreenEsc0J);
     FRIEND_TEST(TerminalLogicTest, ClearScreenEsc1J);
-    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc2J);
+    FRIEND_TEST(TerminalLogicTest, FunctionalKeys);
+    FRIEND_TEST(TerminalLogicTest, Utf8Input);
+#endif
 
     // Terminal state
     int term_cols;
@@ -103,7 +141,7 @@ private:
     static const CharAttr ansi_colors[];
 
     // ANSI parsing methods
-    void parse_ansi_sequence(const std::string &seq, char final_char);
+    int parse_ansi_sequence(const std::string &seq, char final_char, std::vector<int> &dirty_rows);
     void handle_csi_sequence(const std::string &seq, char final_char,
                              const std::vector<int> &params);
 

@@ -23,506 +23,129 @@
 //
 #include "system_interface.h"
 
-#include <errno.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
+#include <algorithm>
 #include <iostream>
 
-// Static signal handler context
-static SystemInterface *interface_instance = nullptr;
-
-SystemInterface::SystemInterface(int cols, int rows)
-    : term_cols(cols), term_rows(rows), terminal_logic(cols, rows)
+SystemInterface::SystemInterface(int cols, int rows) : terminal(cols, rows), dirty_lines(rows, true)
 {
-    interface_instance = this;
-#ifdef __APPLE__
-    font_path = "/System/Library/Fonts/Menlo.ttc";
-#else
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf";
-#endif
+    initialize_sdl();
+    initialize_pty();
+    texture_cache.resize(rows);
 }
 
 SystemInterface::~SystemInterface()
 {
     if (child_pid > 0) {
         kill(child_pid, SIGTERM);
-        int status;
-        waitpid(child_pid, &status, 0);
+        waitpid(child_pid, nullptr, 0);
     }
-    if (master_fd != -1)
-        close(master_fd);
-    for (auto &line_spans : texture_cache) {
-        for (auto &span : line_spans) {
-            if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
-        }
+    if (pty_fd != -1) {
+        close(pty_fd);
     }
-    if (renderer)
-        SDL_DestroyRenderer(renderer);
-    if (window)
-        SDL_DestroyWindow(window);
-    if (font)
-        TTF_CloseFont(font);
+    if (font) {
+        TTF_CloseFont(static_cast<TTF_Font *>(font));
+    }
+    if (renderer) {
+        SDL_DestroyRenderer(static_cast<SDL_Renderer *>(renderer));
+    }
+    if (window) {
+        SDL_DestroyWindow(static_cast<SDL_Window *>(window));
+    }
     TTF_Quit();
     SDL_Quit();
 }
 
-bool SystemInterface::initialize()
-{
-    if (!initialize_sdl())
-        return false;
-
-    struct termios slave_termios;
-    char *slave_name;
-    if (!initialize_pty(slave_termios, slave_name))
-        return false;
-    if (!initialize_child_process(slave_name, slave_termios))
-        return false;
-
-    texture_cache.resize(term_rows);
-    dirty_lines.resize(term_rows, true);
-
-    return true;
-}
-
-bool SystemInterface::initialize_sdl()
+void SystemInterface::initialize_sdl()
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
-        return false;
+        exit(1);
     }
     if (TTF_Init() < 0) {
         std::cerr << "TTF_Init failed: " << TTF_GetError() << std::endl;
-        return false;
-    }
-
-    font = TTF_OpenFont(font_path.c_str(), font_size);
-    if (!font) {
-        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
-        return false;
-    }
-
-    TTF_SizeText(font, "M", &char_width, &char_height);
-    if (char_width == 0 || char_height == 0) {
-        std::cerr << "Failed to get font metrics" << std::endl;
-        return false;
+        exit(1);
     }
 
     window = SDL_CreateWindow("Terminal Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              term_cols * char_width, term_rows * char_height,
-                              SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                              800, 600, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
-        std::cerr << "Cannot access GUI display. Please ensure a graphical environment is available.\n";
-        return false;
+        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
+        exit(1);
     }
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(static_cast<SDL_Window *>(window), -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << std::endl;
-        return false;
+        exit(1);
     }
 
-    return true;
+    const char *font_path = "/System/Library/Fonts/Menlo.ttc";
+    font                  = TTF_OpenFont(font_path, font_size);
+    if (!font) {
+        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+        exit(1);
+    }
 }
 
-bool SystemInterface::initialize_pty(struct termios &slave_termios, char *&slave_name)
+void SystemInterface::initialize_pty()
 {
-    master_fd = posix_openpt(O_RDWR | O_NOCTTY);
-    if (master_fd == -1) {
-        std::cerr << "Error opening pseudo-terminal: " << strerror(errno) << std::endl;
-        return false;
+    pty_fd = posix_openpt(O_RDWR | O_NOCTTY);
+    if (pty_fd < 0) {
+        std::cerr << "posix_openpt failed: " << strerror(errno) << std::endl;
+        exit(1);
+    }
+    if (grantpt(pty_fd) < 0 || unlockpt(pty_fd) < 0) {
+        std::cerr << "PTY setup failed: " << strerror(errno) << std::endl;
+        exit(1);
     }
 
-    if (grantpt(master_fd) == -1 || unlockpt(master_fd) == -1) {
-        std::cerr << "Warning: PTY setup failed: " << strerror(errno) << std::endl;
-    }
-
-    slave_name = ptsname(master_fd);
-    if (!slave_name) {
-        std::cerr << "Error getting slave name: " << strerror(errno) << std::endl;
-        close(master_fd);
-        return false;
-    }
-
-    tcgetattr(STDIN_FILENO, &slave_termios);
-    slave_termios.c_lflag |= ISIG;
-    slave_termios.c_iflag |= ICRNL;
-    slave_termios.c_oflag |= OPOST | ONLCR;
-
-    fcntl(master_fd, F_SETFL, O_NONBLOCK);
-    return true;
-}
-
-bool SystemInterface::initialize_child_process(const char *slave_name,
-                                               const struct termios &slave_termios)
-{
     child_pid = fork();
-    if (child_pid == -1) {
-        std::cerr << "Error forking: " << strerror(errno) << std::endl;
-        close(master_fd);
-        return false;
-    }
-
-    if (child_pid == 0) {
-        close(master_fd);
-        if (setsid() == -1) {
-            std::cerr << "Error setting session: " << strerror(errno) << std::endl;
-            _exit(1);
-        }
-
-        int slave_fd = open(slave_name, O_RDWR);
-        if (slave_fd == -1) {
-            std::cerr << "Error opening slave: " << strerror(errno) << std::endl;
-            _exit(1);
-        }
-
-        if (ioctl(slave_fd, TIOCSCTTY, 0) == -1 ||
-            tcsetattr(slave_fd, TCSANOW, &slave_termios) == -1) {
-            std::cerr << "Error setting slave terminal: " << strerror(errno) << std::endl;
-            _exit(1);
+    if (child_pid < 0) {
+        std::cerr << "fork failed: " << strerror(errno) << std::endl;
+        exit(1);
+    } else if (child_pid == 0) {
+        const char *pty_name = ptsname(pty_fd);
+        int slave_fd         = open(pty_name, O_RDWR);
+        if (slave_fd < 0) {
+            std::cerr << "open slave PTY failed: " << strerror(errno) << std::endl;
+            exit(1);
         }
 
         dup2(slave_fd, STDIN_FILENO);
         dup2(slave_fd, STDOUT_FILENO);
         dup2(slave_fd, STDERR_FILENO);
-        if (slave_fd > 2)
-            close(slave_fd);
+        close(slave_fd);
+        close(pty_fd);
 
-        execl("/bin/sh", "sh", nullptr);
-        std::cerr << "Error executing shell: " << strerror(errno) << std::endl;
-        _exit(1);
+        setenv("TERM", "xterm-256color", 1);
+        execlp("bash", "bash", nullptr);
+        std::cerr << "execlp failed: " << strerror(errno) << std::endl;
+        exit(1);
     }
 
-    struct sigaction sa;
-    sa.sa_handler = forward_signal;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
-    sigaction(SIGQUIT, &sa, nullptr);
-
-    sa.sa_handler = handle_sigwinch;
-    sigaction(SIGWINCH, &sa, nullptr);
-
-    return true;
-}
-
-void SystemInterface::run()
-{
-    bool running = true;
-    while (running) {
-        handle_events();
-        process_pty_input();
-        render_text();
-
-        int status;
-        if (waitpid(child_pid, &status, WNOHANG) > 0) {
-            running = false;
-        }
+    struct winsize ws = {};
+    ws.ws_col         = terminal.get_cols();
+    ws.ws_row         = terminal.get_rows();
+    if (ioctl(pty_fd, TIOCSWINSZ, &ws) < 0) {
+        std::cerr << "ioctl TIOCSWINSZ failed: " << strerror(errno) << std::endl;
     }
-}
-
-void SystemInterface::render_text()
-{
-    Uint32 current_time = SDL_GetTicks();
-    if (current_time - last_cursor_toggle >= cursor_blink_interval) {
-        cursor_visible     = !cursor_visible;
-        last_cursor_toggle = current_time;
-    }
-
-    update_texture_cache();
-    render_spans();
-    render_cursor();
-
-    SDL_RenderPresent(renderer);
-}
-
-void SystemInterface::update_texture_cache()
-{
-    const auto &text_buffer = terminal_logic.get_text_buffer();
-    for (size_t i = 0; i < text_buffer.size(); ++i) {
-        if (!dirty_lines[i])
-            continue;
-
-        for (auto &span : texture_cache[i]) {
-            if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
-        }
-        texture_cache[i].clear();
-
-        std::string current_text;
-        CharAttr current_span_attr = text_buffer[i][0].attr;
-        int start_col              = 0;
-
-        for (int j = 0; j < term_cols; ++j) {
-            const auto &c = text_buffer[i][j];
-            if (c.attr == current_span_attr && j < term_cols - 1) {
-                current_text += c.ch;
-            } else {
-                if (!current_text.empty()) {
-                    TextSpan span;
-                    span.text      = current_text;
-                    span.attr      = current_span_attr;
-                    span.start_col = start_col;
-
-                    SDL_Color fg         = { current_span_attr.fg_r, current_span_attr.fg_g,
-                                             current_span_attr.fg_b, current_span_attr.fg_a };
-                    SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
-                    if (surface) {
-                        span.texture = SDL_CreateTextureFromSurface(renderer, surface);
-                        SDL_FreeSurface(surface);
-                    }
-                    texture_cache[i].push_back(span);
-                }
-                current_text      = c.ch;
-                current_span_attr = c.attr;
-                start_col         = j;
-            }
-        }
-
-        if (!current_text.empty()) {
-            TextSpan span;
-            span.text      = current_text;
-            span.attr      = current_span_attr;
-            span.start_col = start_col;
-
-            SDL_Color fg = { current_span_attr.fg_r, current_span_attr.fg_g, current_span_attr.fg_b,
-                             current_span_attr.fg_a };
-            SDL_Surface *surface = TTF_RenderText_Blended(font, current_text.c_str(), fg);
-            if (surface) {
-                span.texture = SDL_CreateTextureFromSurface(renderer, surface);
-                SDL_FreeSurface(surface);
-            }
-            texture_cache[i].push_back(span);
-        }
-
-        dirty_lines[i] = false;
-    }
-}
-
-void SystemInterface::render_spans()
-{
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-
-    for (size_t i = 0; i < texture_cache.size() && i < static_cast<size_t>(term_rows); ++i) {
-        for (const auto &span : texture_cache[i]) {
-            if (!span.texture)
-                continue;
-
-            SDL_SetRenderDrawColor(renderer, span.attr.bg_r, span.attr.bg_g, span.attr.bg_b,
-                                   span.attr.bg_a);
-            SDL_Rect bg_rect = { span.start_col * char_width, static_cast<int>(i * char_height),
-                                 static_cast<int>(span.text.length() * char_width), char_height };
-            SDL_RenderFillRect(renderer, &bg_rect);
-
-            int w, h;
-            SDL_QueryTexture(static_cast<SDL_Texture *>(span.texture), nullptr, nullptr, &w, &h);
-            SDL_Rect dst = { span.start_col * char_width, static_cast<int>(i * char_height), w, h };
-            SDL_RenderCopy(renderer, static_cast<SDL_Texture *>(span.texture), nullptr, &dst);
-        }
-    }
-}
-
-void SystemInterface::render_cursor()
-{
-    if (cursor_visible) {
-        const auto &cursor = terminal_logic.get_cursor();
-        if (cursor.row < term_rows && cursor.col < term_cols) {
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_Rect cursor_rect = { cursor.col * char_width, cursor.row * char_height, char_width,
-                                     char_height };
-            SDL_RenderFillRect(renderer, &cursor_rect);
-        }
-    }
-}
-
-void SystemInterface::handle_events()
-{
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-        case SDL_QUIT:
-            kill(child_pid, SIGTERM);
-            break;
-        case SDL_KEYDOWN:
-            handle_key_event(event.key);
-            break;
-        case SDL_WINDOWEVENT:
-            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                int new_cols = std::max(event.window.data1 / char_width, 1);
-                int new_rows = std::max(event.window.data2 / char_height, 1);
-                terminal_logic.resize(new_cols, new_rows);
-                texture_cache.resize(new_rows);
-                dirty_lines.resize(new_rows, true);
-                term_cols = new_cols;
-                term_rows = new_rows;
-
-                struct winsize ws;
-                ws.ws_col    = term_cols;
-                ws.ws_row    = term_rows;
-                ws.ws_xpixel = term_cols * char_width;
-                ws.ws_ypixel = term_rows * char_height;
-                if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
-                    std::cerr << "Error setting slave window size: " << strerror(errno)
-                              << std::endl;
-                }
-                if (child_pid > 0) {
-                    kill(child_pid, SIGWINCH);
-                }
-            }
-            break;
-        }
-    }
-}
-
-void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
-{
-    Uint16 mod = key.keysym.mod;
-
-    // Handle font size changes
-#ifdef __APPLE__
-    if (mod & KMOD_GUI) {
-        if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(1); // Cmd+=
-            return;
-        } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-1); // Cmd+-
-            return;
-        }
-    }
-#else
-    if (mod & KMOD_CTRL) {
-        if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(1); // Ctrl+=
-            return;
-        } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-1); // Ctrl+-
-            return;
-        }
-    }
-#endif
-
-    // Forward key to TerminalLogic
-    std::string input = terminal_logic.process_key(key.keysym.sym, mod & KMOD_SHIFT, mod & KMOD_CTRL);
-    if (!input.empty()) {
-        //std::cerr << "Sending input: ";
-        //for (char c : input) {
-        //    std::cerr << (int)c << " ";
-        //}
-        //std::cerr << std::endl;
-        write(master_fd, input.c_str(), input.size());
-    }
-}
-
-void SystemInterface::change_font_size(int delta)
-{
-    int new_size = font_size + delta;
-    if (new_size < 8 || new_size > 72) {
-        //std::cerr << "Font size out of range: " << new_size << std::endl;
-        return;
-    }
-
-    if (font) {
-        TTF_CloseFont(font);
-        font = nullptr;
-    }
-
-    font_size = new_size;
-    font      = TTF_OpenFont(font_path.c_str(), font_size);
-    if (!font) {
-        std::cerr << "Failed to load font at size " << font_size << ": " << TTF_GetError()
-                  << std::endl;
-        font_size = 16;
-        font      = TTF_OpenFont(font_path.c_str(), font_size);
-        if (!font) {
-            std::cerr << "Failed to revert to default font: " << TTF_GetError() << std::endl;
-            return;
-        }
-    }
-
-    TTF_SizeText(font, "M", &char_width, &char_height);
-    if (char_width == 0 || char_height == 0) {
-        std::cerr << "Failed to get font metrics for size " << font_size << std::endl;
-        TTF_CloseFont(font);
-        font = nullptr;
-        return;
-    }
-
-    SDL_SetWindowSize(window, term_cols * char_width, term_rows * char_height);
-
-    int win_width, win_height;
-    SDL_GetWindowSize(window, &win_width, &win_height);
-    int new_cols = std::max(win_width / char_width, 1);
-    int new_rows = std::max(win_height / char_height, 1);
-    term_cols    = new_cols;
-    term_rows    = new_rows;
-
-    struct winsize ws;
-    ws.ws_col    = term_cols;
-    ws.ws_row    = term_rows;
-    ws.ws_xpixel = term_cols * char_width;
-    ws.ws_ypixel = term_rows * char_height;
-    if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
-        std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
-    } else {
-        //std::cerr << "Updated slave size to " << ws.ws_col << "x" << ws.ws_row << std::endl;
-    }
-
-    if (child_pid > 0) {
-        kill(child_pid, SIGWINCH);
-    }
-
-    terminal_logic.resize(term_cols, term_rows);
-    for (auto &line_spans : texture_cache) {
-        for (auto &span : line_spans) {
-            if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
-        }
-    }
-    texture_cache.resize(term_rows);
-    dirty_lines.resize(term_rows, true);
-
-    //std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols << "x"
-    //          << term_rows << std::endl;
 }
 
 void SystemInterface::process_pty_input()
 {
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    FD_SET(master_fd, &read_fds);
-    struct timeval tv = { 0, 10000 };
-
-    if (select(master_fd + 1, &read_fds, nullptr, nullptr, &tv) <= 0)
-        return;
-
-    if (FD_ISSET(master_fd, &read_fds)) {
-        char buffer[1024];
-        ssize_t bytes = read(master_fd, buffer, sizeof(buffer) - 1);
-        if (bytes <= 0) {
-            if (bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-                std::cerr << "Error reading from master_fd: " << strerror(errno) << std::endl;
-                kill(child_pid, SIGTERM);
-            }
-            return;
-        }
-
-        buffer[bytes] = '\0';
-        //std::cerr << "Read " << bytes << " bytes: ";
-        //for (ssize_t j = 0; j < bytes; ++j) {
-        //    std::cerr << (int)buffer[j] << " ";
-        //}
-        //std::cerr << std::endl;
-
-        // Process input through TerminalLogic
-        auto dirty_rows = terminal_logic.process_input(buffer, bytes);
+    char buffer[1024];
+    ssize_t bytes_read = read(pty_fd, buffer, sizeof(buffer));
+    if (bytes_read > 0) {
+        std::vector<int> dirty_rows = terminal.process_input(buffer, bytes_read);
         for (int row : dirty_rows) {
             if (row >= 0 && static_cast<size_t>(row) < dirty_lines.size()) {
                 dirty_lines[row] = true;
@@ -531,46 +154,317 @@ void SystemInterface::process_pty_input()
     }
 }
 
-void SystemInterface::forward_signal(int sig)
+void SystemInterface::process_sdl_event()
 {
-    if (interface_instance && interface_instance->child_pid > 0) {
-        kill(interface_instance->child_pid, sig);
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+        case SDL_QUIT:
+            exit(0);
+            break;
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                int width          = event.window.data1;
+                int height         = event.window.data2;
+                TTF_Font *ttf_font = static_cast<TTF_Font *>(font);
+                int char_width, char_height;
+                TTF_SizeText(ttf_font, "A", &char_width, &char_height);
+                int new_cols = std::max(1, width / char_width);
+                int new_rows = std::max(1, height / char_height);
+                resize(new_cols, new_rows);
+            }
+            break;
+        case SDL_KEYDOWN: {
+            KeyCode keycode    = KeyCode::CHARACTER;
+            char character     = 0;
+            uint16_t modifiers = event.key.keysym.mod;
+
+            // Map SDL2 keycodes to KeyCode enum
+            switch (event.key.keysym.sym) {
+            case SDLK_RETURN:
+                keycode = KeyCode::RETURN;
+                break;
+            case SDLK_BACKSPACE:
+                keycode = KeyCode::BACKSPACE;
+                break;
+            case SDLK_TAB:
+                keycode = KeyCode::TAB;
+                break;
+            case SDLK_UP:
+                keycode = KeyCode::UP;
+                break;
+            case SDLK_DOWN:
+                keycode = KeyCode::DOWN;
+                break;
+            case SDLK_RIGHT:
+                keycode = KeyCode::RIGHT;
+                break;
+            case SDLK_LEFT:
+                keycode = KeyCode::LEFT;
+                break;
+            case SDLK_HOME:
+                keycode = KeyCode::HOME;
+                break;
+            case SDLK_END:
+                keycode = KeyCode::END;
+                break;
+            case SDLK_INSERT:
+                keycode = KeyCode::INSERT;
+                break;
+            case SDLK_DELETE:
+                keycode = KeyCode::DELETE;
+                break;
+            case SDLK_PAGEUP:
+                keycode = KeyCode::PAGEUP;
+                break;
+            case SDLK_PAGEDOWN:
+                keycode = KeyCode::PAGEDOWN;
+                break;
+            case SDLK_F1:
+                keycode = KeyCode::F1;
+                break;
+            case SDLK_F2:
+                keycode = KeyCode::F2;
+                break;
+            case SDLK_F3:
+                keycode = KeyCode::F3;
+                break;
+            case SDLK_F4:
+                keycode = KeyCode::F4;
+                break;
+            case SDLK_F5:
+                keycode = KeyCode::F5;
+                break;
+            case SDLK_F6:
+                keycode = KeyCode::F6;
+                break;
+            case SDLK_F7:
+                keycode = KeyCode::F7;
+                break;
+            case SDLK_F8:
+                keycode = KeyCode::F8;
+                break;
+            case SDLK_F9:
+                keycode = KeyCode::F9;
+                break;
+            case SDLK_F10:
+                keycode = KeyCode::F10;
+                break;
+            case SDLK_F11:
+                keycode = KeyCode::F11;
+                break;
+            case SDLK_F12:
+                keycode = KeyCode::F12;
+                break;
+            default:
+                if (event.key.keysym.sym >= 32 && event.key.keysym.sym <= 126) {
+                    character = static_cast<char>(event.key.keysym.sym);
+                    keycode   = KeyCode::CHARACTER;
+                }
+                break;
+            }
+
+            // Process the key with the mapped KeyCode and character
+            std::string input = terminal.process_key(keycode, modifiers, character);
+            if (!input.empty()) {
+                write(pty_fd, input.c_str(), input.size());
+            }
+
+            // Handle font size adjustment
+            if (keycode == KeyCode::CHARACTER && modifiers & KMOD_GUI) {
+                if (character == '=' || character == '+') {
+                    font_size = std::min(72, font_size + 2);
+                    TTF_CloseFont(static_cast<TTF_Font *>(font));
+                    font = TTF_OpenFont("/System/Library/Fonts/Menlo.ttc", font_size);
+                    if (!font) {
+                        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+                        exit(1);
+                    }
+                    clear_texture_cache();
+                    int char_width, char_height;
+                    TTF_SizeText(static_cast<TTF_Font *>(font), "A", &char_width, &char_height);
+                    int new_cols = std::max(1, 800 / char_width);
+                    int new_rows = std::max(1, 600 / char_height);
+                    resize(new_cols, new_rows);
+                } else if (character == '-') {
+                    font_size = std::max(8, font_size - 2);
+                    TTF_CloseFont(static_cast<TTF_Font *>(font));
+                    font = TTF_OpenFont("/System/Library/Fonts/Menlo.ttc", font_size);
+                    if (!font) {
+                        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+                        exit(1);
+                    }
+                    clear_texture_cache();
+                    int char_width, char_height;
+                    TTF_SizeText(static_cast<TTF_Font *>(font), "A", &char_width, &char_height);
+                    int new_cols = std::max(1, 800 / char_width);
+                    int new_rows = std::max(1, 600 / char_height);
+                    resize(new_cols, new_rows);
+                }
+            }
+            break;
+        }
+        }
     }
 }
 
-void SystemInterface::handle_sigwinch(int sig)
+void SystemInterface::render_frame()
 {
-    if (interface_instance) {
-        int win_width, win_height;
-        SDL_GetWindowSize(interface_instance->window, &win_width, &win_height);
-        int new_cols = std::max(win_width / interface_instance->char_width, 1);
-        int new_rows = std::max(win_height / interface_instance->char_height, 1);
+    update_texture_cache();
+    SDL_Renderer *sdl_renderer = static_cast<SDL_Renderer *>(renderer);
+    SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
+    SDL_RenderClear(sdl_renderer);
 
-        interface_instance->term_cols = new_cols;
-        interface_instance->term_rows = new_rows;
+    TTF_Font *ttf_font = static_cast<TTF_Font *>(font);
+    int char_width, char_height;
+    TTF_SizeText(ttf_font, "A", &char_width, &char_height);
 
-        struct winsize ws;
-        ws.ws_col    = new_cols;
-        ws.ws_row    = new_rows;
-        ws.ws_xpixel = new_cols * interface_instance->char_width;
-        ws.ws_ypixel = new_rows * interface_instance->char_height;
-        if (ioctl(interface_instance->master_fd, TIOCSWINSZ, &ws) == -1) {
-            std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
-            return;
-        }
+    for (size_t row = 0; row < texture_cache.size(); ++row) {
+        render_text(row, texture_cache[row]);
+    }
 
-        interface_instance->terminal_logic.resize(new_cols, new_rows);
-        for (auto &line_spans : interface_instance->texture_cache) {
-            for (auto &span : line_spans) {
-                if (span.texture)
-                    SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+    // Render cursor
+    const Cursor &cursor = terminal.get_cursor();
+    if (cursor.row >= 0 && cursor.row < static_cast<int>(texture_cache.size()) && cursor.col >= 0 &&
+        cursor.col < terminal.get_cols()) {
+        SDL_Rect cursor_rect = { cursor.col * char_width, cursor.row * char_height, char_width,
+                                 char_height };
+        SDL_SetRenderDrawColor(sdl_renderer, 255, 255, 255, 255);
+        SDL_RenderFillRect(sdl_renderer, &cursor_rect);
+    }
+
+    SDL_RenderPresent(sdl_renderer);
+}
+
+void SystemInterface::resize(int new_cols, int new_rows)
+{
+    terminal.resize(new_cols, new_rows);
+    dirty_lines.assign(new_rows, true);
+    texture_cache.resize(new_rows);
+    for (auto &spans : texture_cache) {
+        for (auto &span : spans) {
+            if (span.texture) {
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                span.texture = nullptr;
             }
         }
-        interface_instance->texture_cache.resize(new_rows);
-        interface_instance->dirty_lines.resize(new_rows, true);
+        spans.clear();
+    }
 
-        if (interface_instance->child_pid > 0) {
-            kill(interface_instance->child_pid, SIGWINCH);
+    struct winsize ws = {};
+    ws.ws_col         = new_cols;
+    ws.ws_row         = new_rows;
+    if (ioctl(pty_fd, TIOCSWINSZ, &ws) < 0) {
+        std::cerr << "ioctl TIOCSWINSZ failed: " << strerror(errno) << std::endl;
+    }
+}
+
+int SystemInterface::get_cols() const
+{
+    return terminal.get_cols();
+}
+
+int SystemInterface::get_rows() const
+{
+    return terminal.get_rows();
+}
+
+void SystemInterface::update_texture_cache()
+{
+    const auto &text_buffer = terminal.get_text_buffer();
+    for (size_t row = 0; row < text_buffer.size(); ++row) {
+        if (!dirty_lines[row])
+            continue;
+        dirty_lines[row] = false;
+
+        // Clear existing textures
+        for (auto &span : texture_cache[row]) {
+            if (span.texture) {
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                span.texture = nullptr;
+            }
+        }
+        texture_cache[row].clear();
+
+        // Group characters into spans with the same attributes
+        std::wstring current_text;
+        CharAttr current_attr = text_buffer[row][0].attr;
+        int start_col         = 0;
+
+        for (int col = 0; col < terminal.get_cols(); ++col) {
+            const Char &ch = text_buffer[row][col];
+            if (ch.attr == current_attr && col < terminal.get_cols() - 1) {
+                current_text += ch.ch;
+            } else {
+                if (!current_text.empty()) {
+                    texture_cache[row].push_back({ current_text, current_attr, start_col });
+                }
+                current_text = ch.ch;
+                current_attr = ch.attr;
+                start_col    = col;
+            }
+        }
+        if (!current_text.empty()) {
+            texture_cache[row].push_back({ current_text, current_attr, start_col });
         }
     }
+}
+
+void SystemInterface::render_text(int row, const std::vector<TextSpan> &spans)
+{
+    SDL_Renderer *sdl_renderer = static_cast<SDL_Renderer *>(renderer);
+    TTF_Font *ttf_font         = static_cast<TTF_Font *>(font);
+    int char_width, char_height;
+    TTF_SizeText(ttf_font, "A", &char_width, &char_height);
+
+    for (const auto &span : spans) {
+        if (span.text.empty())
+            continue;
+
+        // Render background
+        SDL_Rect bg_rect = { span.start_col * char_width, row * char_height,
+                             static_cast<int>(span.text.length()) * char_width, char_height };
+        SDL_SetRenderDrawColor(sdl_renderer, span.attr.bg_r, span.attr.bg_g, span.attr.bg_b,
+                               span.attr.bg_a);
+        SDL_RenderFillRect(sdl_renderer, &bg_rect);
+
+        // Create texture if not cached
+        if (!span.texture) {
+            SDL_Color fg_color = { span.attr.fg_r, span.attr.fg_g, span.attr.fg_b, span.attr.fg_a };
+            SDL_Surface *surface = TTF_RenderUNICODE_Blended(
+                static_cast<TTF_Font *>(font), reinterpret_cast<const Uint16 *>(span.text.c_str()),
+                fg_color);
+            if (!surface) {
+                std::cerr << "TTF_RenderUNICODE_Blended failed: " << TTF_GetError() << std::endl;
+                continue;
+            }
+            SDL_Texture *texture = SDL_CreateTextureFromSurface(sdl_renderer, surface);
+            SDL_FreeSurface(surface);
+            if (!texture) {
+                std::cerr << "SDL_CreateTextureFromSurface failed: " << SDL_GetError() << std::endl;
+                continue;
+            }
+            const_cast<TextSpan &>(span).texture = texture;
+        }
+
+        // Render texture
+        SDL_Rect dst_rect = { span.start_col * char_width, row * char_height, 0, 0 };
+        SDL_QueryTexture(static_cast<SDL_Texture *>(span.texture), nullptr, nullptr, &dst_rect.w,
+                         &dst_rect.h);
+        SDL_RenderCopy(sdl_renderer, static_cast<SDL_Texture *>(span.texture), nullptr, &dst_rect);
+    }
+}
+
+void SystemInterface::clear_texture_cache()
+{
+    for (auto &row : texture_cache) {
+        for (auto &span : row) {
+            if (span.texture) {
+                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                span.texture = nullptr;
+            }
+        }
+        row.clear();
+    }
+    dirty_lines.assign(dirty_lines.size(), true);
 }
