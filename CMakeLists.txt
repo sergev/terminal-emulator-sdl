@@ -34,7 +34,6 @@ add_executable(terminal_emulator
     src/terminal_logic.cpp
 )
 target_include_directories(terminal_emulator PRIVATE
-    src
     ${SDL2_INCLUDE_DIRS}
     SDL2_ttf::SDL2_ttf
     ${gtest_SOURCE_DIR}/include

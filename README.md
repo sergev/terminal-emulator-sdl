@@ -4,11 +4,11 @@ Simple ANSI terminal emulator, based on SDL2 library.
 
 On Linux:
 
-    sudo apt-get install libsdl2-dev libsdl2-ttf-dev fonts-dejavu
+    sudo apt-get install libsdl2-dev libsdl2-ttf-dev fonts-dejavu libicu-dev
 
 On MacOS:
 
-    brew install sdl2 sdl2_ttf
+    brew install sdl2 sdl2_ttf icu4c
 
 # Build
 
