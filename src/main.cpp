@@ -1,5 +1,5 @@
 //
-// Simple ANSI terminal emulator.
+// Main routine of the terminal emulator.
 //
 // Copyright (c) 2025 Serge Vakulenko
 //
@@ -21,14 +21,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "terminal_emulator.h"
+#include "system_interface.h"
 
 int main()
 {
-    TerminalEmulator emulator(80, 24);
-    if (!emulator.initialize()) {
+    SystemInterface interface(80, 24);
+    if (!interface.initialize()) {
         return 1;
     }
-    emulator.run();
+    interface.run();
     return 0;
 }

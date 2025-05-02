@@ -29,18 +29,19 @@ enable_testing()
 # Main executable
 add_executable(terminal_emulator
     src/main.cpp
-    src/terminal_emulator.cpp
+    src/system_interface.cpp
+    src/terminal_logic.cpp
 )
 target_include_directories(terminal_emulator PRIVATE src)
 target_link_libraries(terminal_emulator PRIVATE SDL2::SDL2 SDL2_ttf::SDL2_ttf)
 
 # Unit tests
 add_executable(unit_tests
-    src/terminal_emulator.cpp
+    src/terminal_logic.cpp
     src/unit_tests.cpp
 )
 target_include_directories(unit_tests PRIVATE src)
-target_link_libraries(unit_tests PRIVATE GTest::gtest_main SDL2::SDL2 SDL2_ttf::SDL2_ttf)
+target_link_libraries(unit_tests PRIVATE GTest::gtest_main)
 
 # Add tests to CTest
 include(GoogleTest)
