@@ -524,6 +524,9 @@ KeyInput SdlInterface::keysym_to_key_input(const SDL_Keysym &keysym)
     case SDLK_F12:
         key.code = KeyCode::F12;
         break;
+    case SDLK_CAPSLOCK:
+        key.code = KeyCode::CAPSLOCK;
+        break;
     default:
         key.code = KeyCode::CHARACTER;
         key.character = static_cast<wchar_t>(keysym.sym);

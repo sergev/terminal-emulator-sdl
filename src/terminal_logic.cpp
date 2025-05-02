@@ -218,6 +218,7 @@ std::string TerminalLogic::process_key(const KeyInput &key)
     // Map keycodes to terminal inputs
     switch (key.code) {
     case KeyCode::UNKNOWN:
+    case KeyCode::CAPSLOCK:
         // No input.
         break;
     case KeyCode::ENTER:
