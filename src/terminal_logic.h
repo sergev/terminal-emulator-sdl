@@ -31,6 +31,16 @@
 #include <string>
 #include <vector>
 
+// Structure for key input
+struct KeyInput {
+    unsigned code{};
+    bool mod_shift{};
+    bool mod_ctrl{};
+
+    KeyInput() = default;
+    KeyInput(unsigned c, bool shift, bool ctrl) : code(c), mod_shift(shift), mod_ctrl(ctrl) {}
+};
+
 // Structure for character attributes
 struct CharAttr {
     uint8_t fg_r = 255, fg_g = 255, fg_b = 255, fg_a = 255; // Foreground color (default white)
@@ -72,7 +82,7 @@ public:
     TerminalLogic(int cols = 80, int rows = 24);
     void resize(int new_cols, int new_rows);
     std::vector<int> process_input(const char *buffer, size_t length);
-    std::string process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl);
+    std::string process_key(const KeyInput &key);
     const std::vector<std::vector<Char>> &get_text_buffer() const;
     const Cursor &get_cursor() const;
 

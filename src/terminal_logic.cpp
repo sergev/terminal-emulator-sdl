@@ -159,13 +159,13 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
     return dirty_rows;
 }
 
-std::string TerminalLogic::process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl)
+std::string TerminalLogic::process_key(const KeyInput &key)
 {
     std::string input;
-    //std::cerr << "Key processed: Keycode=" << keycode << ", Modifiers=" << modifiers << std::endl;
+    //std::cerr << "Key processed: Keycode=" << key.code << ", Modifiers=" << modifiers << std::endl;
 
     // Map SDL keycodes to terminal inputs
-    switch (keycode) {
+    switch (key.code) {
     case 13:
         input = "\r";
         break; // SDLK_RETURN
@@ -242,20 +242,20 @@ std::string TerminalLogic::process_key(uint32_t keycode, bool mod_shift, bool mo
         input = "\033[24~";
         break; // SDLK_F12
     default:
-        if (mod_ctrl) {
-            if (keycode >= 'a' && keycode <= 'z') {
-                char ctrl_char = (keycode - 'a') + 1;
+        if (key.mod_ctrl) {
+            if (key.code >= 'a' && key.code <= 'z') {
+                char ctrl_char = (key.code - 'a') + 1;
                 input          = std::string(1, ctrl_char);
             }
-        } else if (keycode >= 'a' && keycode <= 'z') {
-            char base_char = keycode;
-            if (mod_shift) {
+        } else if (key.code >= 'a' && key.code <= 'z') {
+            char base_char = key.code;
+            if (key.mod_shift) {
                 base_char = std::toupper(base_char);
             }
             input = std::string(1, base_char);
-        } else if (keycode >= 32 && keycode <= 126) {
-            char base_char = keycode;
-            if (mod_shift) {
+        } else if (key.code >= 32 && key.code <= 126) {
+            char base_char = key.code;
+            if (key.mod_shift) {
                 static const std::map<char, char> shift_map = {
                     { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
                     { '6', '^' },  { '7', '&' }, { '8', '*' }, { '9', '(' }, { '0', ')' },

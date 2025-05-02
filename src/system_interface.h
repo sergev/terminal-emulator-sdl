@@ -86,6 +86,7 @@ private:
     void handle_events();
     void handle_key_event(const SDL_KeyboardEvent &key);
     void change_font_size(int delta);
+    static KeyInput keysym_to_key_input(const SDL_Keysym &keysym);
 
     // PTY input handling
     void process_pty_input();

@@ -384,11 +384,9 @@ void SystemInterface::handle_events()
 
 void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
 {
-    Uint16 mod = key.keysym.mod;
-
     // Handle font size changes
 #ifdef __APPLE__
-    if (mod & KMOD_GUI) {
+    if (key.keysym.mod & KMOD_GUI) {
         if (key.keysym.sym == SDLK_EQUALS) {
             change_font_size(1); // Cmd+=
             return;
@@ -398,7 +396,7 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
         }
     }
 #else
-    if (mod & KMOD_CTRL) {
+    if (key.keysym.mod & KMOD_CTRL) {
         if (key.keysym.sym == SDLK_EQUALS) {
             change_font_size(1); // Ctrl+=
             return;
@@ -410,7 +408,7 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
 #endif
 
     // Forward key to TerminalLogic
-    std::string input = terminal_logic.process_key(key.keysym.sym, mod & KMOD_SHIFT, mod & KMOD_CTRL);
+    std::string input = terminal_logic.process_key(keysym_to_key_input(key.keysym));
     if (!input.empty()) {
         //std::cerr << "Sending input: ";
         //for (char c : input) {
@@ -419,6 +417,17 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
         //std::cerr << std::endl;
         write(master_fd, input.c_str(), input.size());
     }
+}
+
+KeyInput SystemInterface::keysym_to_key_input(const SDL_Keysym &keysym)
+{
+    KeyInput key;
+
+    //TODO: Map SDL2 keycodes to KeyCode enum
+    key.code      = keysym.sym;
+    key.mod_shift = keysym.mod & KMOD_SHIFT;
+    key.mod_ctrl  = keysym.mod & KMOD_CTRL;
+    return key;
 }
 
 void SystemInterface::change_font_size(int delta)
