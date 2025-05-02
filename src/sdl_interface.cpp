@@ -436,7 +436,9 @@ void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
         //     std::cerr << (int)c << " ";
         // }
         // std::cerr << std::endl;
-        write(master_fd, input.c_str(), input.size());
+        if (write(master_fd, input.c_str(), input.size()) < 0) {
+            std::cerr << "Error writing to slave: " << strerror(errno) << std::endl;
+        }
     }
 }
 
