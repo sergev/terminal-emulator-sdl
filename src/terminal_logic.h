@@ -80,14 +80,6 @@ struct Char {
     CharAttr attr;
 };
 
-// Structure for a span of characters with the same attributes
-struct TextSpan {
-    std::wstring text; // Use wstring for Unicode
-    CharAttr attr;
-    int start_col;
-    void *texture = nullptr; // Opaque pointer for SdlInterface
-};
-
 // Cursor position
 struct Cursor {
     int row = 0;

@@ -38,6 +38,14 @@
 #include <util.h>
 #endif
 
+// Structure for a span of characters with the same attributes
+struct TextSpan {
+    std::wstring text; // Use wstring for Unicode
+    CharAttr attr;
+    int start_col;
+    SDL_Texture *texture = nullptr;
+};
+
 class SdlInterface {
 public:
     SdlInterface(int cols = 80, int rows = 24);

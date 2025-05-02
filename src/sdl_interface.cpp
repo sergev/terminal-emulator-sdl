@@ -61,7 +61,7 @@ SdlInterface::~SdlInterface()
     for (auto &line_spans : texture_cache) {
         for (auto &span : line_spans) {
             if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                SDL_DestroyTexture(span.texture);
         }
     }
     if (renderer)
@@ -273,7 +273,7 @@ void SdlInterface::update_texture_cache()
 
         for (auto &span : texture_cache[i]) {
             if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                SDL_DestroyTexture(span.texture);
         }
         texture_cache[i].clear();
 
@@ -344,9 +344,9 @@ void SdlInterface::render_spans()
             SDL_RenderFillRect(renderer, &bg_rect);
 
             int w, h;
-            SDL_QueryTexture(static_cast<SDL_Texture *>(span.texture), nullptr, nullptr, &w, &h);
+            SDL_QueryTexture(span.texture, nullptr, nullptr, &w, &h);
             SDL_Rect dst = { span.start_col * char_width, static_cast<int>(i * char_height), w, h };
-            SDL_RenderCopy(renderer, static_cast<SDL_Texture *>(span.texture), nullptr, &dst);
+            SDL_RenderCopy(renderer, span.texture, nullptr, &dst);
         }
     }
 }
@@ -597,7 +597,7 @@ void SdlInterface::change_font_size(int delta)
     for (auto &line_spans : texture_cache) {
         for (auto &span : line_spans) {
             if (span.texture)
-                SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                SDL_DestroyTexture(span.texture);
         }
     }
     texture_cache.resize(term_rows);
@@ -678,7 +678,7 @@ void SdlInterface::handle_sigwinch(int sig)
         for (auto &line_spans : interface_instance->texture_cache) {
             for (auto &span : line_spans) {
                 if (span.texture)
-                    SDL_DestroyTexture(static_cast<SDL_Texture *>(span.texture));
+                    SDL_DestroyTexture(span.texture);
             }
         }
         interface_instance->texture_cache.resize(new_rows);
