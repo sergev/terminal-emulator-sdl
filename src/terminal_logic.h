@@ -72,7 +72,7 @@ public:
     TerminalLogic(int cols = 80, int rows = 24);
     void resize(int new_cols, int new_rows);
     std::vector<int> process_input(const char *buffer, size_t length);
-    std::string process_key(uint32_t keycode, uint16_t modifiers);
+    std::string process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl);
     const std::vector<std::vector<Char>> &get_text_buffer() const;
     const Cursor &get_cursor() const;
 

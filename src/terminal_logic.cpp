@@ -148,7 +148,7 @@ std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
     return dirty_rows;
 }
 
-std::string TerminalLogic::process_key(uint32_t keycode, uint16_t modifiers)
+std::string TerminalLogic::process_key(uint32_t keycode, bool mod_shift, bool mod_ctrl)
 {
     std::string input;
     //std::cerr << "Key processed: Keycode=" << keycode << ", Modifiers=" << modifiers << std::endl;
@@ -156,7 +156,7 @@ std::string TerminalLogic::process_key(uint32_t keycode, uint16_t modifiers)
     // Map SDL keycodes to terminal inputs
     switch (keycode) {
     case 13:
-        input = "\n";
+        input = "\r";
         break; // SDLK_RETURN
     case 8:
         input = "\b";
@@ -231,20 +231,20 @@ std::string TerminalLogic::process_key(uint32_t keycode, uint16_t modifiers)
         input = "\033[24~";
         break; // SDLK_F12
     default:
-        if (modifiers & 0x1000) { // KMOD_CTRL
+        if (mod_ctrl) {
             if (keycode >= 'a' && keycode <= 'z') {
                 char ctrl_char = (keycode - 'a') + 1;
                 input          = std::string(1, ctrl_char);
             }
         } else if (keycode >= 'a' && keycode <= 'z') {
             char base_char = keycode;
-            if (modifiers & 0x0001) { // KMOD_SHIFT
+            if (mod_shift) {
                 base_char = std::toupper(base_char);
             }
             input = std::string(1, base_char);
         } else if (keycode >= 32 && keycode <= 126) {
             char base_char = keycode;
-            if (modifiers & 0x0001) { // KMOD_SHIFT
+            if (mod_shift) {
                 static const std::map<char, char> shift_map = {
                     { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
                     { '6', '^' },  { '7', '&' }, { '8', '*' }, { '9', '(' }, { '0', ')' },

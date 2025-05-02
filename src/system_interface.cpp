@@ -410,7 +410,7 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
 #endif
 
     // Forward key to TerminalLogic
-    std::string input = terminal_logic.process_key(key.keysym.sym, mod);
+    std::string input = terminal_logic.process_key(key.keysym.sym, mod & KMOD_SHIFT, mod & KMOD_CTRL);
     if (!input.empty()) {
         //std::cerr << "Sending input: ";
         //for (char c : input) {
@@ -418,15 +418,6 @@ void SystemInterface::handle_key_event(const SDL_KeyboardEvent &key)
         //}
         //std::cerr << std::endl;
         write(master_fd, input.c_str(), input.size());
-    }
-
-    // Handle special control keys
-    if (mod & KMOD_CTRL) {
-        if (key.keysym.sym == SDLK_c) {
-            kill(child_pid, SIGINT);
-        } else if (key.keysym.sym == SDLK_d) {
-            kill(child_pid, SIGTERM);
-        }
     }
 }
 

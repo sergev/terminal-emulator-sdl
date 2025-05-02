@@ -148,10 +148,10 @@ TEST_F(TerminalLogicTest, ShiftModifier)
 {
     std::string input;
 
-    input = logic->process_key('a', 0x0001); // Shift+A
+    input = logic->process_key('a', true, false); // Shift+A
     EXPECT_EQ(input, "A");
 
-    input = logic->process_key('1', 0x0001); // Shift+1
+    input = logic->process_key('1', true, false); // Shift+1
     EXPECT_EQ(input, "!");
 }
 
@@ -160,10 +160,10 @@ TEST_F(TerminalLogicTest, ControlModifier)
 {
     std::string input;
 
-    input = logic->process_key('a', 0x1000); // Ctrl+A
+    input = logic->process_key('a', false, true); // Ctrl+A
     EXPECT_EQ(input, std::string(1, 0x01));
 
-    input = logic->process_key('z', 0x1000); // Ctrl+Z
+    input = logic->process_key('z', false, true); // Ctrl+Z
     EXPECT_EQ(input, std::string(1, 0x1A));
 }
 
