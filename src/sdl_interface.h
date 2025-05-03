@@ -48,7 +48,7 @@ struct TextSpan {
 
 class SdlInterface {
 public:
-    SdlInterface(int cols = 80, int rows = 24);
+    SdlInterface(int cols, int rows);
     ~SdlInterface();
     bool initialize();
     void run();
