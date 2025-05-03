@@ -11,6 +11,12 @@
 # To reconfigure for Debug build:
 #   make clean; make debug; make
 #
+ifneq ($(wildcard /opt/homebrew/opt/icu4c/.),)
+    CMAKE_OPTIONS := -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/icu4c
+endif
+ifneq ($(wildcard /usr/local/opt/icu4c/.),)
+    CMAKE_OPTIONS := -DCMAKE_PREFIX_PATH=/usr/local/opt/icu4c
+endif
 
 all:    build
 	$(MAKE) -Cbuild $@
@@ -27,7 +33,7 @@ clean:
 
 build:
 	mkdir $@
-	cmake -B$@ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="/usr/local/opt/icu4c"
+	cmake -B$@ -DCMAKE_BUILD_TYPE=RelWithDebInfo $(CMAKE_OPTIONS)
 
 debug:
 	mkdir build
