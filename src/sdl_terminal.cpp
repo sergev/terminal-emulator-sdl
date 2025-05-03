@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "sdl_interface.h"
+#include "sdl_terminal.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -36,11 +36,11 @@
 #include <codecvt>
 
 // Static signal handler context
-static SdlInterface *interface_instance = nullptr;
+static SdlTerminal *terminal_instance = nullptr;
 
-SdlInterface::SdlInterface(int cols, int rows) : display(cols, rows)
+SdlTerminal::SdlTerminal(int cols, int rows) : display(cols, rows)
 {
-    interface_instance = this;
+    terminal_instance = this;
 #ifdef __APPLE__
     font_path = "/System/Library/Fonts/Menlo.ttc";
 #else
@@ -48,7 +48,7 @@ SdlInterface::SdlInterface(int cols, int rows) : display(cols, rows)
 #endif
 }
 
-SdlInterface::~SdlInterface()
+SdlTerminal::~SdlTerminal()
 {
     if (child_pid > 0) {
         kill(child_pid, SIGTERM);
@@ -73,7 +73,7 @@ SdlInterface::~SdlInterface()
     SDL_Quit();
 }
 
-bool SdlInterface::initialize()
+bool SdlTerminal::initialize()
 {
     if (!initialize_sdl())
         return false;
@@ -91,7 +91,7 @@ bool SdlInterface::initialize()
     return true;
 }
 
-bool SdlInterface::initialize_sdl()
+bool SdlTerminal::initialize_sdl()
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
@@ -132,7 +132,7 @@ bool SdlInterface::initialize_sdl()
     return true;
 }
 
-bool SdlInterface::initialize_pty(struct termios &slave_termios, char *&slave_name)
+bool SdlTerminal::initialize_pty(struct termios &slave_termios, char *&slave_name)
 {
     master_fd = posix_openpt(O_RDWR | O_NOCTTY);
     if (master_fd == -1) {
@@ -160,7 +160,7 @@ bool SdlInterface::initialize_pty(struct termios &slave_termios, char *&slave_na
     return true;
 }
 
-bool SdlInterface::initialize_child_process(const char *slave_name,
+bool SdlTerminal::initialize_child_process(const char *slave_name,
                                                const struct termios &slave_termios)
 {
     child_pid = fork();
@@ -214,7 +214,7 @@ bool SdlInterface::initialize_child_process(const char *slave_name,
     return true;
 }
 
-void SdlInterface::run()
+void SdlTerminal::run()
 {
     bool running = true;
     while (running) {
@@ -229,7 +229,7 @@ void SdlInterface::run()
     }
 }
 
-void SdlInterface::render_text()
+void SdlTerminal::render_text()
 {
     Uint32 current_time = SDL_GetTicks();
     if (current_time - last_cursor_toggle >= cursor_blink_interval) {
@@ -262,7 +262,7 @@ static std::string wstring_to_utf8(const std::wstring &wstr)
     return utf8;
 }
 
-void SdlInterface::update_texture_cache()
+void SdlTerminal::update_texture_cache()
 {
     const auto &text_buffer = display.get_text_buffer();
 
@@ -326,7 +326,7 @@ void SdlInterface::update_texture_cache()
     }
 }
 
-void SdlInterface::render_spans()
+void SdlTerminal::render_spans()
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -350,7 +350,7 @@ void SdlInterface::render_spans()
     }
 }
 
-void SdlInterface::render_cursor()
+void SdlTerminal::render_cursor()
 {
     if (cursor_visible) {
         const auto &cursor = display.get_cursor();
@@ -363,7 +363,7 @@ void SdlInterface::render_cursor()
     }
 }
 
-void SdlInterface::handle_events()
+void SdlTerminal::handle_events()
 {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -400,7 +400,7 @@ void SdlInterface::handle_events()
     }
 }
 
-void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
+void SdlTerminal::handle_key_event(const SDL_KeyboardEvent &key)
 {
     // Handle font size changes
 #ifdef __APPLE__
@@ -439,7 +439,7 @@ void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
     }
 }
 
-KeyInput SdlInterface::keysym_to_key_input(const SDL_Keysym &keysym)
+KeyInput SdlTerminal::keysym_to_key_input(const SDL_Keysym &keysym)
 {
     KeyInput key;
 
@@ -561,7 +561,7 @@ KeyInput SdlInterface::keysym_to_key_input(const SDL_Keysym &keysym)
     return key;
 }
 
-void SdlInterface::change_font_size(int delta)
+void SdlTerminal::change_font_size(int delta)
 {
     int new_size = font_size + delta;
     if (new_size < 8 || new_size > 72) {
@@ -632,7 +632,7 @@ void SdlInterface::change_font_size(int delta)
     //           << get_rows() << std::endl;
 }
 
-void SdlInterface::process_pty_input()
+void SdlTerminal::process_pty_input()
 {
     fd_set read_fds;
     FD_ZERO(&read_fds);
@@ -670,43 +670,43 @@ void SdlInterface::process_pty_input()
     }
 }
 
-void SdlInterface::forward_signal(int sig)
+void SdlTerminal::forward_signal(int sig)
 {
-    if (interface_instance && interface_instance->child_pid > 0) {
-        kill(interface_instance->child_pid, sig);
+    if (terminal_instance && terminal_instance->child_pid > 0) {
+        kill(terminal_instance->child_pid, sig);
     }
 }
 
-void SdlInterface::handle_sigwinch(int sig)
+void SdlTerminal::handle_sigwinch(int sig)
 {
-    if (interface_instance) {
+    if (terminal_instance) {
         int win_width, win_height;
-        SDL_GetWindowSize(interface_instance->window, &win_width, &win_height);
-        int new_cols = std::max(win_width / interface_instance->char_width, 1);
-        int new_rows = std::max(win_height / interface_instance->char_height, 1);
+        SDL_GetWindowSize(terminal_instance->window, &win_width, &win_height);
+        int new_cols = std::max(win_width / terminal_instance->char_width, 1);
+        int new_rows = std::max(win_height / terminal_instance->char_height, 1);
 
         struct winsize ws;
         ws.ws_col    = new_cols;
         ws.ws_row    = new_rows;
-        ws.ws_xpixel = new_cols * interface_instance->char_width;
-        ws.ws_ypixel = new_rows * interface_instance->char_height;
-        if (ioctl(interface_instance->master_fd, TIOCSWINSZ, &ws) == -1) {
+        ws.ws_xpixel = new_cols * terminal_instance->char_width;
+        ws.ws_ypixel = new_rows * terminal_instance->char_height;
+        if (ioctl(terminal_instance->master_fd, TIOCSWINSZ, &ws) == -1) {
             std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
             return;
         }
 
-        interface_instance->display.resize(new_cols, new_rows);
-        for (auto &line_spans : interface_instance->texture_cache) {
+        terminal_instance->display.resize(new_cols, new_rows);
+        for (auto &line_spans : terminal_instance->texture_cache) {
             for (auto &span : line_spans) {
                 if (span.texture)
                     SDL_DestroyTexture(span.texture);
             }
         }
-        interface_instance->texture_cache.resize(new_rows);
-        interface_instance->dirty_lines.resize(new_rows, true);
+        terminal_instance->texture_cache.resize(new_rows);
+        terminal_instance->dirty_lines.resize(new_rows, true);
 
-        if (interface_instance->child_pid > 0) {
-            kill(interface_instance->child_pid, SIGWINCH);
+        if (terminal_instance->child_pid > 0) {
+            kill(terminal_instance->child_pid, SIGWINCH);
         }
     }
 }

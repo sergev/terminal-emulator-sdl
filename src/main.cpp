@@ -21,14 +21,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "sdl_interface.h"
+#include "sdl_terminal.h"
 
 int main()
 {
-    SdlInterface interface(80, 24);
-    if (!interface.initialize()) {
+    SdlTerminal terminal(80, 24);
+    if (!terminal.initialize()) {
         return 1;
     }
-    interface.run();
+    terminal.run();
     return 0;
 }

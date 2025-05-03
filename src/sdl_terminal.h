@@ -21,8 +21,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#ifndef SDL_INTERFACE_H
-#define SDL_INTERFACE_H
+#ifndef SDL_TERMINAL_H
+#define SDL_TERMINAL_H
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -46,10 +46,10 @@ struct TextSpan {
     SDL_Texture *texture = nullptr;
 };
 
-class SdlInterface {
+class SdlTerminal {
 public:
-    SdlInterface(int cols, int rows);
-    ~SdlInterface();
+    SdlTerminal(int cols, int rows);
+    ~SdlTerminal();
     bool initialize();
     void run();
 
@@ -104,4 +104,4 @@ private:
     static void handle_sigwinch(int sig);
 };
 
-#endif // SDL_INTERFACE_H
+#endif // SDL_TERMINAL_H
