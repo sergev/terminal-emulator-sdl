@@ -66,12 +66,14 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
         char c = buffer[i];
         switch (state) {
         case AnsiState::NORMAL:
-            if (c == '\033') {
+            switch (c) {
+            case '\033':
                 state = AnsiState::ESCAPE;
                 ansi_seq.clear();
                 // std::cerr << "Received ESC, transitioning to ESCAPE state" << std::endl;
                 ++i;
-            } else if (c == '\n') {
+                break;
+            case '\n':
                 cursor.row++;
                 cursor.col = 0;
                 if (cursor.row >= term_rows) {
@@ -83,7 +85,8 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
                     dirty_rows.push_back(cursor.row);
                 }
                 ++i;
-            } else if (c == '\r') {
+                break;
+            case '\r':
                 cursor.col = 0;
                 if (i + 1 < length && buffer[i + 1] == '\n') {
                     ++i;
@@ -100,20 +103,27 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
                     dirty_rows.push_back(cursor.row);
                 }
                 ++i;
-            } else if (c == '\b') {
+                break;
+            case '\b':
                 if (cursor.col > 0) {
                     cursor.col--;
                     text_buffer[cursor.row][cursor.col] = { L' ', current_attr };
                     dirty_rows.push_back(cursor.row);
                 }
                 ++i;
-            } else if (c == '\t') {
+                break;
+            case '\t':
                 cursor.col = (cursor.col + 8) / 8 * 8;
                 if (cursor.col >= term_cols) {
                     cursor.col = term_cols - 1;
                 }
                 ++i;
-            } else {
+                break;
+            case '\7':
+                // TODO: make a sound.
+                ++i;
+                break;
+            default:
                 // Decode UTF-8 sequence
                 wchar_t ch = 0;
                 int bytes  = 0;
@@ -157,17 +167,20 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
             break;
 
         case AnsiState::ESCAPE:
-            if (c == '[') {
+            switch (c) {
+            case '[':
                 state = AnsiState::CSI;
                 ansi_seq.clear();
                 ansi_seq += c;
                 // std::cerr << "Received [, transitioning to CSI state" << std::endl;
-            } else if (c == 'c') {
+                break;
+            case 'c':
                 // std::cerr << "Received ESC c, processing reset" << std::endl;
                 parse_ansi_sequence("c", dirty_rows);
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
-            } else {
+                break;
+            default:
                 // std::cerr << "Unknown ESC sequence char: " << (int)c << ", resetting to NORMAL"
                 //           << std::endl;
                 state = AnsiState::NORMAL;
