@@ -38,8 +38,7 @@
 // Static signal handler context
 static SdlInterface *interface_instance = nullptr;
 
-SdlInterface::SdlInterface(int cols, int rows)
-    : term_cols(cols), term_rows(rows), terminal_logic(cols, rows)
+SdlInterface::SdlInterface(int cols, int rows) : display(cols, rows)
 {
     interface_instance = this;
 #ifdef __APPLE__
@@ -86,8 +85,8 @@ bool SdlInterface::initialize()
     if (!initialize_child_process(slave_name, slave_termios))
         return false;
 
-    texture_cache.resize(term_rows);
-    dirty_lines.resize(term_rows, true);
+    texture_cache.resize(get_rows());
+    dirty_lines.resize(get_rows(), true);
 
     return true;
 }
@@ -116,7 +115,7 @@ bool SdlInterface::initialize_sdl()
     }
 
     window = SDL_CreateWindow("Terminal Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              term_cols * char_width, term_rows * char_height,
+                              get_cols() * char_width, get_rows() * char_height,
                               SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window) {
         std::cerr << "Cannot access GUI display.\n";
@@ -265,7 +264,7 @@ static std::string wstring_to_utf8(const std::wstring &wstr)
 
 void SdlInterface::update_texture_cache()
 {
-    const auto &text_buffer = terminal_logic.get_text_buffer();
+    const auto &text_buffer = display.get_text_buffer();
 
     for (size_t i = 0; i < text_buffer.size(); ++i) {
         if (!dirty_lines[i])
@@ -281,9 +280,9 @@ void SdlInterface::update_texture_cache()
         CharAttr current_span_attr = text_buffer[i][0].attr;
         int start_col              = 0;
 
-        for (int j = 0; j < term_cols; ++j) {
+        for (int j = 0; j < get_cols(); ++j) {
             const auto &c = text_buffer[i][j];
-            if (c.attr == current_span_attr && j < term_cols - 1) {
+            if (c.attr == current_span_attr && j < get_cols() - 1) {
                 current_text += c.ch;
             } else {
                 if (!current_text.empty()) {
@@ -332,7 +331,7 @@ void SdlInterface::render_spans()
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    for (size_t i = 0; i < texture_cache.size() && i < static_cast<size_t>(term_rows); ++i) {
+    for (size_t i = 0; i < texture_cache.size() && i < static_cast<size_t>(get_rows()); ++i) {
         for (const auto &span : texture_cache[i]) {
             if (!span.texture)
                 continue;
@@ -354,8 +353,8 @@ void SdlInterface::render_spans()
 void SdlInterface::render_cursor()
 {
     if (cursor_visible) {
-        const auto &cursor = terminal_logic.get_cursor();
-        if (cursor.row < term_rows && cursor.col < term_cols) {
+        const auto &cursor = display.get_cursor();
+        if (cursor.row < get_rows() && cursor.col < get_cols()) {
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_Rect cursor_rect = { cursor.col * char_width, cursor.row * char_height, char_width,
                                      char_height };
@@ -379,17 +378,15 @@ void SdlInterface::handle_events()
             if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
                 int new_cols = std::max(event.window.data1 / char_width, 1);
                 int new_rows = std::max(event.window.data2 / char_height, 1);
-                terminal_logic.resize(new_cols, new_rows);
+                display.resize(new_cols, new_rows);
                 texture_cache.resize(new_rows);
                 dirty_lines.resize(new_rows, true);
-                term_cols = new_cols;
-                term_rows = new_rows;
 
                 struct winsize ws;
-                ws.ws_col    = term_cols;
-                ws.ws_row    = term_rows;
-                ws.ws_xpixel = term_cols * char_width;
-                ws.ws_ypixel = term_rows * char_height;
+                ws.ws_col    = get_cols();
+                ws.ws_row    = get_rows();
+                ws.ws_xpixel = get_cols() * char_width;
+                ws.ws_ypixel = get_rows() * char_height;
                 if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
                     std::cerr << "Error setting slave window size: " << strerror(errno)
                               << std::endl;
@@ -429,7 +426,7 @@ void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
 #endif
 
     // Forward key to terminal logic
-    std::string input = terminal_logic.process_key(keysym_to_key_input(key.keysym));
+    std::string input = display.process_key(keysym_to_key_input(key.keysym));
     if (!input.empty()) {
         // std::cerr << "Sending input: ";
         // for (char c : input) {
@@ -598,20 +595,18 @@ void SdlInterface::change_font_size(int delta)
         return;
     }
 
-    SDL_SetWindowSize(window, term_cols * char_width, term_rows * char_height);
+    SDL_SetWindowSize(window, get_cols() * char_width, get_rows() * char_height);
 
     int win_width, win_height;
     SDL_GetWindowSize(window, &win_width, &win_height);
     int new_cols = std::max(win_width / char_width, 1);
     int new_rows = std::max(win_height / char_height, 1);
-    term_cols    = new_cols;
-    term_rows    = new_rows;
 
     struct winsize ws;
-    ws.ws_col    = term_cols;
-    ws.ws_row    = term_rows;
-    ws.ws_xpixel = term_cols * char_width;
-    ws.ws_ypixel = term_rows * char_height;
+    ws.ws_col    = new_cols;
+    ws.ws_row    = new_rows;
+    ws.ws_xpixel = new_cols * char_width;
+    ws.ws_ypixel = new_rows * char_height;
     if (ioctl(master_fd, TIOCSWINSZ, &ws) == -1) {
         std::cerr << "Error setting slave window size: " << strerror(errno) << std::endl;
     } else {
@@ -622,19 +617,19 @@ void SdlInterface::change_font_size(int delta)
         kill(child_pid, SIGWINCH);
     }
 
-    terminal_logic.resize(term_cols, term_rows);
+    display.resize(new_cols, new_rows);
     for (auto &line_spans : texture_cache) {
         for (auto &span : line_spans) {
             if (span.texture)
                 SDL_DestroyTexture(span.texture);
         }
     }
-    texture_cache.resize(term_rows);
-    dirty_lines.resize(term_rows, true);
+    texture_cache.resize(get_rows());
+    dirty_lines.resize(get_rows(), true);
 
-    // std::cerr << "Changed font size to " << font_size << ", terminal size to " << term_cols <<
+    // std::cerr << "Changed font size to " << font_size << ", terminal size to " << get_cols() <<
     // "x"
-    //           << term_rows << std::endl;
+    //           << get_rows() << std::endl;
 }
 
 void SdlInterface::process_pty_input()
@@ -666,7 +661,7 @@ void SdlInterface::process_pty_input()
         // std::cerr << std::endl;
 
         // Process input through terminal logic
-        auto dirty_rows = terminal_logic.process_input(buffer, bytes);
+        auto dirty_rows = display.process_input(buffer, bytes);
         for (int row : dirty_rows) {
             if (row >= 0 && static_cast<size_t>(row) < dirty_lines.size()) {
                 dirty_lines[row] = true;
@@ -690,9 +685,6 @@ void SdlInterface::handle_sigwinch(int sig)
         int new_cols = std::max(win_width / interface_instance->char_width, 1);
         int new_rows = std::max(win_height / interface_instance->char_height, 1);
 
-        interface_instance->term_cols = new_cols;
-        interface_instance->term_rows = new_rows;
-
         struct winsize ws;
         ws.ws_col    = new_cols;
         ws.ws_row    = new_rows;
@@ -703,7 +695,7 @@ void SdlInterface::handle_sigwinch(int sig)
             return;
         }
 
-        interface_instance->terminal_logic.resize(new_cols, new_rows);
+        interface_instance->display.resize(new_cols, new_rows);
         for (auto &line_spans : interface_instance->texture_cache) {
             for (auto &span : line_spans) {
                 if (span.texture)

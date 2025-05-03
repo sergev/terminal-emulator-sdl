@@ -55,8 +55,6 @@ public:
 
 private:
     // Terminal state
-    int term_cols;
-    int term_rows;
     std::vector<std::vector<TextSpan>> texture_cache;
     std::vector<bool> dirty_lines;
     int font_size{ 16 }; // Current font size in points
@@ -77,7 +75,9 @@ private:
     pid_t child_pid{};
 
     // Terminal logic
-    AnsiLogic terminal_logic;
+    AnsiLogic display;
+    int get_cols() const { return display.get_cols(); }
+    int get_rows() const { return display.get_rows(); }
 
     // Initialization methods
     bool initialize_sdl();

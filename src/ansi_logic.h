@@ -100,8 +100,8 @@ public:
     void resize(int new_cols, int new_rows);
     std::vector<int> process_input(const char *buffer, size_t length);
     std::string process_key(const KeyInput &key);
-    const std::vector<std::vector<Char>> &get_text_buffer() const;
-    const Cursor &get_cursor() const;
+    const std::vector<std::vector<Char>> &get_text_buffer() const { return text_buffer; }
+    const Cursor &get_cursor() const { return cursor; }
     int get_cols() const { return term_cols; }
     int get_rows() const { return term_rows; }
 
@@ -134,8 +134,7 @@ private:
 
     // ANSI parsing methods
     void parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows);
-    void handle_csi_sequence(const std::string &seq, char final_char,
-                             const std::vector<int> &params);
+    void handle_csi_sequence(char final_char, const std::vector<int> &params);
 
     // Terminal management methods
     void clear_screen();

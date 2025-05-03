@@ -107,6 +107,12 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
                     dirty_rows.push_back(cursor.row);
                 }
                 ++i;
+            } else if (c == '\t') {
+                cursor.col = (cursor.col + 8) / 8 * 8;
+                if (cursor.col >= term_cols) {
+                    cursor.col = term_cols - 1;
+                }
+                ++i;
             } else {
                 // Decode UTF-8 sequence
                 wchar_t ch = 0;
@@ -356,16 +362,6 @@ std::string AnsiLogic::process_key(const KeyInput &key)
     return input;
 }
 
-const std::vector<std::vector<Char>> &AnsiLogic::get_text_buffer() const
-{
-    return text_buffer;
-}
-
-const Cursor &AnsiLogic::get_cursor() const
-{
-    return cursor;
-}
-
 void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows)
 {
     if (seq.empty()) {
@@ -425,7 +421,7 @@ void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &di
         }
     }
 
-    handle_csi_sequence(seq, final_char, params);
+    handle_csi_sequence(final_char, params);
 
     // Track dirty rows based on the sequence
     if (final_char == 'J') {
@@ -451,8 +447,7 @@ void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &di
     }
 }
 
-void AnsiLogic::handle_csi_sequence(const std::string &seq, char final_char,
-                                        const std::vector<int> &params)
+void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &params)
 {
     switch (final_char) {
     case 'm':
