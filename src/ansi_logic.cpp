@@ -291,16 +291,16 @@ std::string AnsiLogic::process_key(const KeyInput &key)
         input = "\033[6~";
         break;
     case KeyCode::F1:
-        input = "\033[11~";
+        input = "\033OP";
         break;
     case KeyCode::F2:
-        input = "\033[12~";
+        input = "\033OQ";
         break;
     case KeyCode::F3:
-        input = "\033[13~";
+        input = "\033OR";
         break;
     case KeyCode::F4:
-        input = "\033[14~";
+        input = "\033OS";
         break;
     case KeyCode::F5:
         input = "\033[15~";
