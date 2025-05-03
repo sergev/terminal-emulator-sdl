@@ -46,6 +46,10 @@ enum class KeyCode {
     PAGEUP, PAGEDOWN,
     F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
     CAPSLOCK,
+    LEFT_SHIFT, RIGHT_SHIFT,
+    LEFT_CTRL, RIGHT_CTRL,
+    LEFT_OPTION, RIGHT_OPTION,
+    LEFT_COMMAND, RIGHT_COMMAND,
     CHARACTER, // For printable characters
     // clang-format on
 };

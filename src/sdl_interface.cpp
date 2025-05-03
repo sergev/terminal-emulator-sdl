@@ -529,6 +529,30 @@ KeyInput SdlInterface::keysym_to_key_input(const SDL_Keysym &keysym)
     case SDLK_CAPSLOCK:
         key.code = KeyCode::CAPSLOCK;
         break;
+    case SDLK_LSHIFT:
+        key.code = KeyCode::LEFT_SHIFT;
+        break;
+    case SDLK_RSHIFT:
+        key.code = KeyCode::RIGHT_SHIFT;
+        break;
+    case SDLK_LCTRL:
+        key.code = KeyCode::LEFT_CTRL;
+        break;
+    case SDLK_RCTRL:
+        key.code = KeyCode::RIGHT_CTRL;
+        break;
+    case SDLK_LALT:
+        key.code = KeyCode::LEFT_OPTION;
+        break;
+    case SDLK_RALT:
+        key.code = KeyCode::RIGHT_OPTION;
+        break;
+    case SDLK_LGUI:
+        key.code = KeyCode::LEFT_COMMAND;
+        break;
+    case SDLK_RGUI:
+        key.code = KeyCode::RIGHT_COMMAND;
+        break;
     default:
         key.code = KeyCode::CHARACTER;
         key.character = static_cast<wchar_t>(keysym.sym);

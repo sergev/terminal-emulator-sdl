@@ -219,6 +219,14 @@ std::string AnsiLogic::process_key(const KeyInput &key)
     switch (key.code) {
     case KeyCode::UNKNOWN:
     case KeyCode::CAPSLOCK:
+    case KeyCode::LEFT_SHIFT:
+    case KeyCode::RIGHT_SHIFT:
+    case KeyCode::LEFT_CTRL:
+    case KeyCode::RIGHT_CTRL:
+    case KeyCode::LEFT_OPTION:
+    case KeyCode::RIGHT_OPTION:
+    case KeyCode::LEFT_COMMAND:
+    case KeyCode::RIGHT_COMMAND:
         // No input.
         break;
     case KeyCode::ENTER:
