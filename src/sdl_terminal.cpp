@@ -381,6 +381,7 @@ void SdlTerminal::handle_events()
                 display.resize(new_cols, new_rows);
                 texture_cache.resize(new_rows);
                 dirty_lines.resize(new_rows, true);
+                dirty_lines.assign(new_rows, true);
 
                 struct winsize ws;
                 ws.ws_col    = get_cols();
@@ -624,8 +625,9 @@ void SdlTerminal::change_font_size(int delta)
                 SDL_DestroyTexture(span.texture);
         }
     }
-    texture_cache.resize(get_rows());
-    dirty_lines.resize(get_rows(), true);
+    texture_cache.resize(new_rows);
+    dirty_lines.resize(new_rows, true);
+    dirty_lines.assign(new_rows, true);
 
     // std::cerr << "Changed font size to " << font_size << ", terminal size to " << get_cols() <<
     // "x"
@@ -704,6 +706,7 @@ void SdlTerminal::handle_sigwinch(int sig)
         }
         terminal_instance->texture_cache.resize(new_rows);
         terminal_instance->dirty_lines.resize(new_rows, true);
+        terminal_instance->dirty_lines.assign(new_rows, true);
 
         if (terminal_instance->child_pid > 0) {
             kill(terminal_instance->child_pid, SIGWINCH);
