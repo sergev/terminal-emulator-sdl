@@ -36,18 +36,16 @@ protected:
 // Test ESC c (reset and clear screen)
 TEST_F(AnsiLogicTest, EscCResetsStateAndClearsScreen)
 {
-    logic->current_attr.fg_r  = 255;
-    logic->current_attr.fg_g  = 0;
-    logic->current_attr.fg_b  = 0; // Red foreground
+    logic->current_attr.fg    = { 255, 0, 0 }; // Red foreground
     logic->cursor             = { 5, 10 };
     logic->text_buffer[5][10] = { L'x', logic->current_attr };
 
     std::vector<int> dirty_rows;
     logic->parse_ansi_sequence("c", dirty_rows);
 
-    EXPECT_EQ(logic->current_attr.fg_r, 255);
-    EXPECT_EQ(logic->current_attr.fg_g, 255);
-    EXPECT_EQ(logic->current_attr.fg_b, 255);
+    EXPECT_EQ(logic->current_attr.fg.r, 255);
+    EXPECT_EQ(logic->current_attr.fg.g, 255);
+    EXPECT_EQ(logic->current_attr.fg.b, 255);
     EXPECT_EQ(logic->cursor.row, 0);
     EXPECT_EQ(logic->cursor.col, 0);
     for (int r = 0; r < logic->get_rows(); ++r) {
@@ -113,27 +111,27 @@ TEST_F(AnsiLogicTest, EscMSetsColors)
     std::vector<int> dirty_rows;
 
     logic->parse_ansi_sequence("[31m", dirty_rows); // Red foreground
-    EXPECT_EQ(logic->current_attr.fg_r, 255);
-    EXPECT_EQ(logic->current_attr.fg_g, 0);
-    EXPECT_EQ(logic->current_attr.fg_b, 0);
+    EXPECT_EQ(logic->current_attr.fg.r, 255);
+    EXPECT_EQ(logic->current_attr.fg.g, 0);
+    EXPECT_EQ(logic->current_attr.fg.b, 0);
     EXPECT_TRUE(dirty_rows.empty());
 
     logic->parse_ansi_sequence("[41m", dirty_rows); // Red background
-    EXPECT_EQ(logic->current_attr.fg_r, 255);       // Foreground should remain red
-    EXPECT_EQ(logic->current_attr.fg_g, 0);
-    EXPECT_EQ(logic->current_attr.fg_b, 0);
-    EXPECT_EQ(logic->current_attr.bg_r, 255);
-    EXPECT_EQ(logic->current_attr.bg_g, 0);
-    EXPECT_EQ(logic->current_attr.bg_b, 0);
+    EXPECT_EQ(logic->current_attr.fg.r, 255);       // Foreground should remain red
+    EXPECT_EQ(logic->current_attr.fg.g, 0);
+    EXPECT_EQ(logic->current_attr.fg.b, 0);
+    EXPECT_EQ(logic->current_attr.bg.r, 255);
+    EXPECT_EQ(logic->current_attr.bg.g, 0);
+    EXPECT_EQ(logic->current_attr.bg.b, 0);
     EXPECT_TRUE(dirty_rows.empty());
 
     logic->parse_ansi_sequence("[0m", dirty_rows); // Reset
-    EXPECT_EQ(logic->current_attr.fg_r, 255);
-    EXPECT_EQ(logic->current_attr.fg_g, 255);
-    EXPECT_EQ(logic->current_attr.fg_b, 255);
-    EXPECT_EQ(logic->current_attr.bg_r, 0);
-    EXPECT_EQ(logic->current_attr.bg_g, 0);
-    EXPECT_EQ(logic->current_attr.bg_b, 0);
+    EXPECT_EQ(logic->current_attr.fg.r, 255);
+    EXPECT_EQ(logic->current_attr.fg.g, 255);
+    EXPECT_EQ(logic->current_attr.fg.b, 255);
+    EXPECT_EQ(logic->current_attr.bg.r, 0);
+    EXPECT_EQ(logic->current_attr.bg.g, 0);
+    EXPECT_EQ(logic->current_attr.bg.b, 0);
     EXPECT_TRUE(dirty_rows.empty());
 }
 

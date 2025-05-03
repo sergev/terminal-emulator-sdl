@@ -291,8 +291,8 @@ void SdlTerminal::update_texture_cache()
                     span.attr      = current_span_attr;
                     span.start_col = start_col;
 
-                    SDL_Color fg         = { current_span_attr.fg_r, current_span_attr.fg_g,
-                                             current_span_attr.fg_b, current_span_attr.fg_a };
+                    SDL_Color fg         = { current_span_attr.fg.r, current_span_attr.fg.g,
+                                             current_span_attr.fg.b, 255 };
                     SDL_Surface *surface = TTF_RenderUTF8_Blended(font, wstring_to_utf8(current_text).c_str(), fg);
                     if (surface) {
                         span.texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -312,8 +312,8 @@ void SdlTerminal::update_texture_cache()
             span.attr      = current_span_attr;
             span.start_col = start_col;
 
-            SDL_Color fg = { current_span_attr.fg_r, current_span_attr.fg_g, current_span_attr.fg_b,
-                             current_span_attr.fg_a };
+            SDL_Color fg = { current_span_attr.fg.r, current_span_attr.fg.g, current_span_attr.fg.b,
+                             255 };
             SDL_Surface *surface = TTF_RenderUTF8_Blended(font, wstring_to_utf8(current_text).c_str(), fg);
             if (surface) {
                 span.texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -336,8 +336,8 @@ void SdlTerminal::render_spans()
             if (!span.texture)
                 continue;
 
-            SDL_SetRenderDrawColor(renderer, span.attr.bg_r, span.attr.bg_g, span.attr.bg_b,
-                                   span.attr.bg_a);
+            SDL_SetRenderDrawColor(renderer, span.attr.bg.r, span.attr.bg.g, span.attr.bg.b,
+                                   255);
             SDL_Rect bg_rect = { span.start_col * char_width, static_cast<int>(i * char_height),
                                  static_cast<int>(span.text.length() * char_width), char_height };
             SDL_RenderFillRect(renderer, &bg_rect);

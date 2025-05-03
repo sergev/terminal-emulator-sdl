@@ -29,15 +29,15 @@
 #include <cctype>
 #include <iostream>
 
-const CharAttr AnsiLogic::ansi_colors[] = {
-    { 0, 0, 0, 255, 0, 0, 0, 255 },             // Black
-    { 255, 0, 0, 255, 255, 0, 0, 255 },         // Red
-    { 0, 255, 0, 255, 0, 255, 0, 255 },         // Green
-    { 255, 255, 0, 255, 255, 255, 0, 255 },     // Yellow
-    { 0, 0, 255, 255, 0, 0, 255, 255 },         // Blue
-    { 255, 0, 255, 255, 255, 0, 255, 255 },     // Magenta
-    { 0, 255, 255, 255, 0, 255, 255, 255 },     // Cyan
-    { 255, 255, 255, 255, 255, 255, 255, 255 }, // White
+const RgbColor AnsiLogic::ansi_colors[] = {
+    { 0, 0, 0 },       // Black
+    { 255, 0, 0 },     // Red
+    { 0, 255, 0 },     // Green
+    { 255, 255, 0 },   // Yellow
+    { 0, 0, 255 },     // Blue
+    { 255, 0, 255 },   // Magenta
+    { 0, 255, 255 },   // Cyan
+    { 255, 255, 255 }, // White
 };
 
 AnsiLogic::AnsiLogic(int cols, int rows)
@@ -456,21 +456,13 @@ void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &par
             if (p == 0) {
                 current_attr = CharAttr();
             } else if (p >= 30 && p <= 37) {
-                current_attr.fg_r = ansi_colors[p - 30].fg_r;
-                current_attr.fg_g = ansi_colors[p - 30].fg_g;
-                current_attr.fg_b = ansi_colors[p - 30].fg_b;
+                current_attr.fg = ansi_colors[p - 30];
             } else if (p >= 40 && p <= 47) {
-                current_attr.bg_r = ansi_colors[p - 40].bg_r;
-                current_attr.bg_g = ansi_colors[p - 40].bg_g;
-                current_attr.bg_b = ansi_colors[p - 40].bg_b;
+                current_attr.bg = ansi_colors[p - 40];
             } else if (p >= 90 && p <= 97) {
-                current_attr.fg_r = ansi_colors[p - 90].fg_r;
-                current_attr.fg_g = ansi_colors[p - 90].fg_g;
-                current_attr.fg_b = ansi_colors[p - 90].fg_b;
+                current_attr.fg = ansi_colors[p - 90];
             } else if (p >= 100 && p <= 107) {
-                current_attr.bg_r = ansi_colors[p - 100].bg_r;
-                current_attr.bg_g = ansi_colors[p - 100].bg_g;
-                current_attr.bg_b = ansi_colors[p - 100].bg_b;
+                current_attr.bg = ansi_colors[p - 100];
             }
         }
         break;

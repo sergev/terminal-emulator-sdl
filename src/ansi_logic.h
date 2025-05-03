@@ -66,16 +66,26 @@ struct KeyInput {
         : code(KeyCode::CHARACTER), character(c), mod_shift(shift), mod_ctrl(ctrl) {}
 };
 
+// Structure for color
+struct RgbColor {
+    uint8_t r{}, g{}, b{};
+
+    RgbColor(uint8_t x, uint8_t y, uint8_t z) : r(x), g(y), b(z) {}
+
+    bool operator==(const RgbColor &other) const
+    {
+        return r == other.r && g == other.g && b == other.b;
+    }
+};
+
 // Structure for character attributes
 struct CharAttr {
-    uint8_t fg_r = 255, fg_g = 255, fg_b = 255, fg_a = 255; // Foreground color (default white)
-    uint8_t bg_r = 0, bg_g = 0, bg_b = 0, bg_a = 255;       // Background color (default black)
+    RgbColor fg{ 255, 255, 255 }; // Foreground color (default white)
+    RgbColor bg{ 0, 0, 0 };       // Background color (default black)
 
     bool operator==(const CharAttr &other) const
     {
-        return fg_r == other.fg_r && fg_g == other.fg_g && fg_b == other.fg_b &&
-               fg_a == other.fg_a && bg_r == other.bg_r && bg_g == other.bg_g &&
-               bg_b == other.bg_b && bg_a == other.bg_a;
+        return fg == other.fg && bg == other.bg;
     }
 };
 
@@ -130,7 +140,7 @@ private:
     std::string ansi_seq;
 
     // ANSI colors
-    static const CharAttr ansi_colors[];
+    static const RgbColor ansi_colors[];
 
     // ANSI parsing methods
     void parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows);
