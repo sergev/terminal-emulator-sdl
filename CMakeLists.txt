@@ -31,7 +31,7 @@ enable_testing()
 add_executable(terminal_emulator
     src/main.cpp
     src/sdl_interface.cpp
-    src/terminal_logic.cpp
+    src/ansi_logic.cpp
 )
 target_include_directories(terminal_emulator PRIVATE
     ${SDL2_INCLUDE_DIRS}
@@ -46,7 +46,7 @@ target_link_libraries(terminal_emulator PRIVATE
 
 # Unit tests
 add_executable(unit_tests
-    src/terminal_logic.cpp
+    src/ansi_logic.cpp
     src/unit_tests.cpp
 )
 target_include_directories(unit_tests PRIVATE src)

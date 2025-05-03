@@ -21,8 +21,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#ifndef TERMINAL_LOGIC_H
-#define TERMINAL_LOGIC_H
+#ifndef ANSI_LOGIC_H
+#define ANSI_LOGIC_H
 
 #include <gtest/gtest_prod.h>
 
@@ -90,9 +90,9 @@ struct Cursor {
 // ANSI parsing states
 enum class AnsiState { NORMAL, ESCAPE, CSI };
 
-class TerminalLogic {
+class AnsiLogic {
 public:
-    TerminalLogic(int cols = 80, int rows = 24);
+    AnsiLogic(int cols = 80, int rows = 24);
     void resize(int new_cols, int new_rows);
     std::vector<int> process_input(const char *buffer, size_t length);
     std::string process_key(const KeyInput &key);
@@ -103,18 +103,18 @@ public:
 
 private:
     // Declare test cases as friends
-    FRIEND_TEST(TerminalLogicTest, EscCResetsStateAndClearsScreen);
-    FRIEND_TEST(TerminalLogicTest, EscKClearsLine);
-    FRIEND_TEST(TerminalLogicTest, EscMSetsColors);
-    FRIEND_TEST(TerminalLogicTest, CursorMovement);
-    FRIEND_TEST(TerminalLogicTest, ShiftModifier);
-    FRIEND_TEST(TerminalLogicTest, ControlModifier);
-    FRIEND_TEST(TerminalLogicTest, TextBufferInsertion);
-    FRIEND_TEST(TerminalLogicTest, ScrollUp);
-    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc0J);
-    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc1J);
-    FRIEND_TEST(TerminalLogicTest, ClearScreenEsc2J);
-    FRIEND_TEST(TerminalLogicTest, Utf8Input);
+    FRIEND_TEST(AnsiLogicTest, EscCResetsStateAndClearsScreen);
+    FRIEND_TEST(AnsiLogicTest, EscKClearsLine);
+    FRIEND_TEST(AnsiLogicTest, EscMSetsColors);
+    FRIEND_TEST(AnsiLogicTest, CursorMovement);
+    FRIEND_TEST(AnsiLogicTest, ShiftModifier);
+    FRIEND_TEST(AnsiLogicTest, ControlModifier);
+    FRIEND_TEST(AnsiLogicTest, TextBufferInsertion);
+    FRIEND_TEST(AnsiLogicTest, ScrollUp);
+    FRIEND_TEST(AnsiLogicTest, ClearScreenEsc0J);
+    FRIEND_TEST(AnsiLogicTest, ClearScreenEsc1J);
+    FRIEND_TEST(AnsiLogicTest, ClearScreenEsc2J);
+    FRIEND_TEST(AnsiLogicTest, Utf8Input);
 
     // Terminal state
     int term_cols;
@@ -139,4 +139,4 @@ private:
     void scroll_up();
 };
 
-#endif // TERMINAL_LOGIC_H
+#endif // ANSI_LOGIC_H

@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 
-#include "terminal_logic.h"
+#include "ansi_logic.h"
 
 #ifdef __linux__
 #include <pty.h>
@@ -77,7 +77,7 @@ private:
     pid_t child_pid{};
 
     // Terminal logic
-    TerminalLogic terminal_logic;
+    AnsiLogic terminal_logic;
 
     // Initialization methods
     bool initialize_sdl();

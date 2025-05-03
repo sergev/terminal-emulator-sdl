@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-#include "terminal_logic.h"
+#include "ansi_logic.h"
 
 #include <unicode/uchar.h>
 
@@ -29,7 +29,7 @@
 #include <cctype>
 #include <iostream>
 
-const CharAttr TerminalLogic::ansi_colors[] = {
+const CharAttr AnsiLogic::ansi_colors[] = {
     { 0, 0, 0, 255, 0, 0, 0, 255 },             // Black
     { 255, 0, 0, 255, 255, 0, 0, 255 },         // Red
     { 0, 255, 0, 255, 0, 255, 0, 255 },         // Green
@@ -40,13 +40,13 @@ const CharAttr TerminalLogic::ansi_colors[] = {
     { 255, 255, 255, 255, 255, 255, 255, 255 }, // White
 };
 
-TerminalLogic::TerminalLogic(int cols, int rows)
+AnsiLogic::AnsiLogic(int cols, int rows)
     : term_cols(cols), term_rows(rows), state(AnsiState::NORMAL)
 {
     text_buffer.resize(term_rows, std::vector<Char>(term_cols, { L' ', current_attr }));
 }
 
-void TerminalLogic::resize(int new_cols, int new_rows)
+void AnsiLogic::resize(int new_cols, int new_rows)
 {
     term_cols = new_cols;
     term_rows = new_rows;
@@ -58,7 +58,7 @@ void TerminalLogic::resize(int new_cols, int new_rows)
     cursor.col = std::min(cursor.col, term_cols - 1);
 }
 
-std::vector<int> TerminalLogic::process_input(const char *buffer, size_t length)
+std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
 {
     std::vector<int> dirty_rows;
     size_t i = 0;
@@ -209,7 +209,7 @@ static std::string wchar_to_utf8(wchar_t wc)
     return utf8;
 }
 
-std::string TerminalLogic::process_key(const KeyInput &key)
+std::string AnsiLogic::process_key(const KeyInput &key)
 {
     std::string input;
     // std::cerr << "Key processed: Keycode=" << key.code << ", Modifiers=" << modifiers <<
@@ -339,17 +339,17 @@ std::string TerminalLogic::process_key(const KeyInput &key)
     return input;
 }
 
-const std::vector<std::vector<Char>> &TerminalLogic::get_text_buffer() const
+const std::vector<std::vector<Char>> &AnsiLogic::get_text_buffer() const
 {
     return text_buffer;
 }
 
-const Cursor &TerminalLogic::get_cursor() const
+const Cursor &AnsiLogic::get_cursor() const
 {
     return cursor;
 }
 
-void TerminalLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows)
+void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows)
 {
     if (seq.empty()) {
         return;
@@ -434,7 +434,7 @@ void TerminalLogic::parse_ansi_sequence(const std::string &seq, std::vector<int>
     }
 }
 
-void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
+void AnsiLogic::handle_csi_sequence(const std::string &seq, char final_char,
                                         const std::vector<int> &params)
 {
     switch (final_char) {
@@ -543,7 +543,7 @@ void TerminalLogic::handle_csi_sequence(const std::string &seq, char final_char,
     }
 }
 
-void TerminalLogic::clear_screen()
+void AnsiLogic::clear_screen()
 {
     for (int r = 0; r < term_rows; ++r) {
         text_buffer[r] = std::vector<Char>(term_cols, { L' ', current_attr });
@@ -552,14 +552,14 @@ void TerminalLogic::clear_screen()
     cursor.col = 0;
 }
 
-void TerminalLogic::reset_state()
+void AnsiLogic::reset_state()
 {
     // std::cerr << "Processing ESC c: Resetting terminal state" << std::endl;
     current_attr = CharAttr();
     clear_screen();
 }
 
-void TerminalLogic::scroll_up()
+void AnsiLogic::scroll_up()
 {
     text_buffer.erase(text_buffer.begin());
     text_buffer.push_back(std::vector<Char>(term_cols, { L' ', current_attr }));

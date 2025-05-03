@@ -23,18 +23,18 @@
 //
 #include <gtest/gtest.h>
 
-#include "terminal_logic.h"
+#include "ansi_logic.h"
 
-// Test fixture for TerminalLogic
-class TerminalLogicTest : public ::testing::Test {
+// Test fixture for AnsiLogic
+class AnsiLogicTest : public ::testing::Test {
 protected:
-    void SetUp() override { logic = std::make_unique<TerminalLogic>(80, 24); }
+    void SetUp() override { logic = std::make_unique<AnsiLogic>(80, 24); }
 
-    std::unique_ptr<TerminalLogic> logic;
+    std::unique_ptr<AnsiLogic> logic;
 };
 
 // Test ESC c (reset and clear screen)
-TEST_F(TerminalLogicTest, EscCResetsStateAndClearsScreen)
+TEST_F(AnsiLogicTest, EscCResetsStateAndClearsScreen)
 {
     logic->current_attr.fg_r  = 255;
     logic->current_attr.fg_g  = 0;
@@ -63,7 +63,7 @@ TEST_F(TerminalLogicTest, EscCResetsStateAndClearsScreen)
 }
 
 // Test ESC [ K (erase in line)
-TEST_F(TerminalLogicTest, EscKClearsLine)
+TEST_F(AnsiLogicTest, EscKClearsLine)
 {
     logic->cursor = { 5, 10 };
     for (int c = 0; c < logic->get_cols(); ++c) {
@@ -108,7 +108,7 @@ TEST_F(TerminalLogicTest, EscKClearsLine)
 }
 
 // Test ESC [ m (SGR)
-TEST_F(TerminalLogicTest, EscMSetsColors)
+TEST_F(AnsiLogicTest, EscMSetsColors)
 {
     std::vector<int> dirty_rows;
 
@@ -138,7 +138,7 @@ TEST_F(TerminalLogicTest, EscMSetsColors)
 }
 
 // Test cursor movement
-TEST_F(TerminalLogicTest, CursorMovement)
+TEST_F(AnsiLogicTest, CursorMovement)
 {
     logic->cursor = { 5, 10 };
     std::vector<int> dirty_rows;
@@ -174,7 +174,7 @@ TEST_F(TerminalLogicTest, CursorMovement)
 }
 
 // Test Shift modifier
-TEST_F(TerminalLogicTest, ShiftModifier)
+TEST_F(AnsiLogicTest, ShiftModifier)
 {
     std::string input;
 
@@ -186,7 +186,7 @@ TEST_F(TerminalLogicTest, ShiftModifier)
 }
 
 // Test Control modifier
-TEST_F(TerminalLogicTest, ControlModifier)
+TEST_F(AnsiLogicTest, ControlModifier)
 {
     std::string input;
 
@@ -198,7 +198,7 @@ TEST_F(TerminalLogicTest, ControlModifier)
 }
 
 // Test text buffer insertion
-TEST_F(TerminalLogicTest, TextBufferInsertion)
+TEST_F(AnsiLogicTest, TextBufferInsertion)
 {
     logic->cursor             = { 5, 10 };
     logic->text_buffer[5][10] = { L'x', logic->current_attr };
@@ -212,7 +212,7 @@ TEST_F(TerminalLogicTest, TextBufferInsertion)
 }
 
 // Test scroll up
-TEST_F(TerminalLogicTest, ScrollUp)
+TEST_F(AnsiLogicTest, ScrollUp)
 {
     // Fill the first row with 'a'
     for (int c = 0; c < logic->get_cols(); ++c) {
@@ -249,7 +249,7 @@ TEST_F(TerminalLogicTest, ScrollUp)
 }
 
 // Test ESC [0J (clear from cursor to end of screen)
-TEST_F(TerminalLogicTest, ClearScreenEsc0J)
+TEST_F(AnsiLogicTest, ClearScreenEsc0J)
 {
     // Fill buffer with 'x'
     for (int r = 0; r < logic->get_rows(); ++r) {
@@ -296,7 +296,7 @@ TEST_F(TerminalLogicTest, ClearScreenEsc0J)
 }
 
 // Test ESC [1J (clear from start of screen to cursor)
-TEST_F(TerminalLogicTest, ClearScreenEsc1J)
+TEST_F(AnsiLogicTest, ClearScreenEsc1J)
 {
     // Fill buffer with 'x'
     for (int r = 0; r < logic->get_rows(); ++r) {
@@ -343,7 +343,7 @@ TEST_F(TerminalLogicTest, ClearScreenEsc1J)
 }
 
 // Test ESC [2J (clear entire screen)
-TEST_F(TerminalLogicTest, ClearScreenEsc2J)
+TEST_F(AnsiLogicTest, ClearScreenEsc2J)
 {
     // Fill buffer with 'x'
     for (int r = 0; r < logic->get_rows(); ++r) {
@@ -377,7 +377,7 @@ TEST_F(TerminalLogicTest, ClearScreenEsc2J)
 }
 
 // Test UTF-8 input decoding
-TEST_F(TerminalLogicTest, Utf8Input)
+TEST_F(AnsiLogicTest, Utf8Input)
 {
     // Test ASCII
     const char ascii[] = "a";

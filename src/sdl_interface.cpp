@@ -428,7 +428,7 @@ void SdlInterface::handle_key_event(const SDL_KeyboardEvent &key)
     }
 #endif
 
-    // Forward key to TerminalLogic
+    // Forward key to terminal logic
     std::string input = terminal_logic.process_key(keysym_to_key_input(key.keysym));
     if (!input.empty()) {
         // std::cerr << "Sending input: ";
@@ -641,7 +641,7 @@ void SdlInterface::process_pty_input()
         // }
         // std::cerr << std::endl;
 
-        // Process input through TerminalLogic
+        // Process input through terminal logic
         auto dirty_rows = terminal_logic.process_input(buffer, bytes);
         for (int row : dirty_rows) {
             if (row >= 0 && static_cast<size_t>(row) < dirty_lines.size()) {
