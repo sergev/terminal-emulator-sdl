@@ -301,38 +301,47 @@ std::string AnsiLogic::process_key(const KeyInput &key)
         break;
     case KeyCode::CHARACTER:
         if (key.mod_ctrl) {
-            if (key.character >= 'a' && key.character <= 'z') {
-                char ctrl_char = (key.character - 'a') + 1;
-                input          = std::string(1, ctrl_char);
-            }
-        } else if (key.character >= 'a' && key.character <= 'z') {
-            char base_char = key.character;
-            if (key.mod_shift) {
-                base_char = std::toupper(base_char);
-            }
-            input = std::string(1, base_char);
-        } else if (key.character >= ' ' && key.character <= '~') {
-            char base_char = key.character;
-            if (key.mod_shift) {
-                static const std::map<char, char> shift_map = {
-                    { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
-                    { '6', '^' },  { '7', '&' }, { '8', '*' }, { '9', '(' }, { '0', ')' },
-                    { '-', '_' },  { '=', '+' }, { '[', '{' }, { ']', '}' }, { ';', ':' },
-                    { '\'', '"' }, { ',', '<' }, { '.', '>' }, { '/', '?' }, { '`', '~' }
-                };
-                auto it = shift_map.find(base_char);
-                if (it != shift_map.end()) {
-                    base_char = it->second;
+            //
+            // Ctrl modifier is pressed.
+            //
+            input = std::string(1, key.character & 0x1f);
+        } else if (key.mod_shift) {
+            //
+            // Shift modifier is pressed.
+            //
+            if (key.character <= 0x7f) {
+                // ASCII symbol.
+                char ch = key.character;
+                if (key.character >= 'a' && key.character <= 'z') {
+                    // Convert ASCII character to uppercase.
+                    ch = std::toupper(ch);
+                } else {
+                    static const std::map<char, char> shift_map = {
+                        { '1', '!' },  { '2', '@' }, { '3', '#' }, { '4', '$' }, { '5', '%' },
+                        { '6', '^' },  { '7', '&' }, { '8', '*' }, { '9', '(' }, { '0', ')' },
+                        { '-', '_' },  { '=', '+' }, { '[', '{' }, { ']', '}' }, { ';', ':' },
+                        { '\'', '"' }, { ',', '<' }, { '.', '>' }, { '/', '?' }, { '`', '~' }
+                    };
+                    auto it = shift_map.find(ch);
+                    if (it != shift_map.end()) {
+                        ch = it->second;
+                    }
                 }
+                input = std::string(1, ch);
+            } else {
+                // Convert Unicode character to uppercase.
+                input = wchar_to_utf8(u_toupper(key.character));
             }
-            input = std::string(1, base_char);
+        } else if (key.character <= 0x7f) {
+            //
+            // ASCII symbol.
+            //
+            input = std::string(1, key.character);
         } else {
-            auto ch = key.character;
-            if (key.mod_shift) {
-                // Convert Unicode character to uppercase
-                ch = u_toupper(ch);
-            }
-            input = wchar_to_utf8(ch);
+            //
+            // Unicode symbol.
+            //
+            input = wchar_to_utf8(key.character);
         }
         break;
     }
