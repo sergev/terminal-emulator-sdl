@@ -407,20 +407,20 @@ void SdlTerminal::handle_key_event(const SDL_KeyboardEvent &key)
 #ifdef __APPLE__
     if (key.keysym.mod & KMOD_GUI) {
         if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(1); // Cmd+=
+            change_font_size(2); // Cmd=
             return;
         } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-1); // Cmd+-
+            change_font_size(-2); // Cmd-
             return;
         }
     }
 #else
     if (key.keysym.mod & KMOD_CTRL) {
         if (key.keysym.sym == SDLK_EQUALS) {
-            change_font_size(1); // Ctrl+=
+            change_font_size(2); // Ctrl=
             return;
         } else if (key.keysym.sym == SDLK_MINUS) {
-            change_font_size(-1); // Ctrl+-
+            change_font_size(-2); // Ctrl-
             return;
         }
     }
