@@ -176,7 +176,10 @@ std::vector<int> AnsiLogic::process_input(const char *buffer, size_t length)
                 break;
             case 'c':
                 // std::cerr << "Received ESC c, processing reset" << std::endl;
-                parse_ansi_sequence("c", dirty_rows);
+                reset_state();
+                for (int r = 0; r < term_rows; ++r) {
+                    dirty_rows.push_back(r);
+                }
                 state = AnsiState::NORMAL;
                 ansi_seq.clear();
                 break;
@@ -375,22 +378,17 @@ std::string AnsiLogic::process_key(const KeyInput &key)
     return input;
 }
 
+static int get_param(const std::vector<int> &params, int index, int default_value)
+{
+    if (params.size() > index && params[index] > default_value) {
+        return params[index];
+    }
+    return default_value;
+}
+
 void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows)
 {
-    if (seq.empty()) {
-        return;
-    }
-
-    char final_char = seq.back();
-    if (final_char == 'c') {
-        reset_state();
-        for (int r = 0; r < term_rows; ++r) {
-            dirty_rows.push_back(r);
-        }
-        return;
-    }
-
-    if (seq[0] != '[') {
+    if (seq.empty() || seq[0] != '[') {
         // std::cerr << "Invalid CSI sequence: " << seq << std::endl;
         return;
     }
@@ -434,35 +432,8 @@ void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &di
         }
     }
 
-    handle_csi_sequence(final_char, params);
-
-    // Track dirty rows based on the sequence
-    if (final_char == 'J') {
-        int mode = params.empty() ? 0 : params[0];
-        if (mode == 0) {
-            for (int r = cursor.row; r < term_rows; ++r) {
-                dirty_rows.push_back(r);
-            }
-        } else if (mode == 1) {
-            for (int r = 0; r <= cursor.row; ++r) {
-                dirty_rows.push_back(r);
-            }
-        } else if (mode == 2) {
-            for (int r = 0; r < term_rows; ++r) {
-                dirty_rows.push_back(r);
-            }
-        }
-    } else if (final_char == 'K') {
-        dirty_rows.push_back(cursor.row);
-    } else if (final_char == 'H' || final_char == 'A' || final_char == 'B' || final_char == 'C' ||
-               final_char == 'D') {
-        dirty_rows.push_back(cursor.row);
-    }
-}
-
-void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &params)
-{
-    switch (final_char) {
+    // Process final character
+    switch (seq.back()) {
     case 'm':
         for (size_t i = 0; i < params.size(); ++i) {
             int p = params[i];
@@ -472,41 +443,35 @@ void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &par
                 current_attr.fg = ansi_colors[p - 30];
             } else if (p >= 40 && p <= 47) {
                 current_attr.bg = ansi_colors[p - 40];
-            } else if (p >= 90 && p <= 97) {
-                current_attr.fg = ansi_colors[p - 90];
-            } else if (p >= 100 && p <= 107) {
-                current_attr.bg = ansi_colors[p - 100];
             }
         }
         break;
 
-    case 'H': {
-        int row    = (params.size() > 0 ? params[0] : 1) - 1;
-        int col    = (params.size() > 1 ? params[1] : 1) - 1;
-        cursor.row = std::max(0, std::min(row, term_rows - 1));
-        cursor.col = std::max(0, std::min(col, term_cols - 1));
+    case 'H':
+        cursor.row = std::max(0, std::min(get_param(params, 0, 1) - 1, term_rows - 1));
+        cursor.col = std::max(0, std::min(get_param(params, 1, 1) - 1, term_cols - 1));
         break;
-    }
 
     case 'A':
-        cursor.row = std::max(0, cursor.row - (params.empty() ? 1 : params[0]));
+        cursor.row = std::max(0, cursor.row - get_param(params, 0, 1));
         break;
 
     case 'B':
-        cursor.row = std::min(term_rows - 1, cursor.row + (params.empty() ? 1 : params[0]));
+        cursor.row = std::min(term_rows - 1, cursor.row + get_param(params, 0, 1));
         break;
 
     case 'C':
-        cursor.col = std::min(term_cols - 1, cursor.col + (params.empty() ? 1 : params[0]));
+        cursor.col = std::min(term_cols - 1, cursor.col + get_param(params, 0, 1));
         break;
 
     case 'D':
-        cursor.col = std::max(0, cursor.col - (params.empty() ? 1 : params[0]));
+        cursor.col = std::max(0, cursor.col - get_param(params, 0, 1));
         break;
 
-    case 'J': {
-        int mode = params.empty() ? 0 : params[0];
-        if (mode == 0) {
+    case 'J':
+        switch (get_param(params, 0, 0)) {
+        default:
+        case 0:
             // Clear from cursor to end of screen
             for (int c = cursor.col; c < term_cols; ++c) {
                 text_buffer[cursor.row][c] = { L' ', current_attr };
@@ -516,7 +481,11 @@ void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &par
                     text_buffer[r][c] = { L' ', current_attr };
                 }
             }
-        } else if (mode == 1) {
+            for (int r = cursor.row; r < term_rows; ++r) {
+                dirty_rows.push_back(r);
+            }
+            break;
+        case 1:
             // Clear from start of screen to cursor
             for (int r = 0; r < cursor.row; ++r) {
                 for (int c = 0; c < term_cols; ++c) {
@@ -526,16 +495,23 @@ void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &par
             for (int c = 0; c <= cursor.col; ++c) {
                 text_buffer[cursor.row][c] = { L' ', current_attr };
             }
-        } else if (mode == 2) {
+            for (int r = 0; r <= cursor.row; ++r) {
+                dirty_rows.push_back(r);
+            }
+            break;
+        case 2:
             clear_screen();
+            for (int r = 0; r < term_rows; ++r) {
+                dirty_rows.push_back(r);
+            }
+            break;
         }
         break;
-    }
 
-    case 'K': {
-        int mode = params.empty() ? 0 : params[0];
+    case 'K':
         // std::cerr << "Processing ESC [ " << mode << "K" << std::endl;
-        switch (mode) {
+        switch (get_param(params, 0, 0)) {
+        default:
         case 0:
             for (int c = cursor.col; c < term_cols; ++c) {
                 text_buffer[cursor.row][c] = { L' ', current_attr };
@@ -551,12 +527,9 @@ void AnsiLogic::handle_csi_sequence(char final_char, const std::vector<int> &par
                 text_buffer[cursor.row][c] = { L' ', current_attr };
             }
             break;
-        default:
-            // std::cerr << "Unknown EL mode: " << mode << std::endl;
-            break;
         }
+        dirty_rows.push_back(cursor.row);
         break;
-    }
     }
 }
 

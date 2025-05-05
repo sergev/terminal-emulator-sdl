@@ -144,7 +144,6 @@ private:
 
     // ANSI parsing methods
     void parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows);
-    void handle_csi_sequence(char final_char, const std::vector<int> &params);
 
     // Terminal management methods
     void clear_screen();
