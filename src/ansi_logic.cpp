@@ -29,15 +29,26 @@
 #include <cctype>
 #include <iostream>
 
-const RgbColor AnsiLogic::ansi_colors[] = {
+const RgbColor AnsiLogic::normal_colors[8] = {
     { 0, 0, 0 },       // Black
-    { 255, 0, 0 },     // Red
-    { 0, 255, 0 },     // Green
-    { 255, 255, 0 },   // Yellow
-    { 0, 0, 255 },     // Blue
-    { 255, 0, 255 },   // Magenta
-    { 0, 255, 255 },   // Cyan
-    { 255, 255, 255 }, // White
+    { 192, 0, 0 },     // Red
+    { 0, 192, 0 },     // Green
+    { 192, 85, 0 },    // Yellow (Brown)
+    { 0, 0, 192 },     // Blue
+    { 192, 0, 192 },   // Magenta
+    { 0, 192, 192 },   // Cyan
+    { 192, 192, 192 }, // White (Light Gray)
+};
+
+const RgbColor AnsiLogic::bright_colors[8] = {
+    { 85, 85, 85 },    // Bright Black (Gray)
+    { 255, 0, 0 },     // Bright Red
+    { 0, 255, 0 },     // Bright Green
+    { 255, 255, 0 },   // Bright Yellow
+    { 0, 0, 255 },     // Bright Blue
+    { 255, 0, 255 },   // Bright Magenta
+    { 0, 255, 255 },   // Bright Cyan
+    { 255, 255, 255 }, // Bright White
 };
 
 AnsiLogic::AnsiLogic(int cols, int rows)
@@ -434,19 +445,28 @@ void AnsiLogic::parse_ansi_sequence(const std::string &seq, std::vector<int> &di
 
     // Process final character
     switch (seq.back()) {
-    case 'm':
+    case 'm': {
+        const RgbColor *current_colors = normal_colors;
         for (size_t i = 0; i < params.size(); ++i) {
             int p = params[i];
             if (p == 0) {
-                current_attr = CharAttr();
+                current_colors = normal_colors;
+                current_attr = CharAttr(); // Light Gray on Black
+            } else if (p == 1) {
+                current_colors = bright_colors;
+                current_attr.fg = bright_colors[7]; // Bright White, same background
             } else if (p >= 30 && p <= 37) {
-                current_attr.fg = ansi_colors[p - 30];
+                current_attr.fg = current_colors[p - 30];
             } else if (p >= 40 && p <= 47) {
-                current_attr.bg = ansi_colors[p - 40];
+                current_attr.bg = current_colors[p - 40];
+            } else if (p >= 90 && p <= 97) {
+                current_attr.fg = bright_colors[p - 90];
+            } else if (p >= 100 && p <= 107) {
+                current_attr.bg = bright_colors[p - 100];
             }
         }
         break;
-
+    }
     case 'H':
         cursor.row = std::max(0, std::min(get_param(params, 0, 1) - 1, term_rows - 1));
         cursor.col = std::max(0, std::min(get_param(params, 1, 1) - 1, term_cols - 1));

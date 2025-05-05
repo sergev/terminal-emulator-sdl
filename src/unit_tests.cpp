@@ -42,9 +42,8 @@ TEST_F(AnsiLogicTest, EscCResetsStateAndClearsScreen)
 
     std::vector<int> dirty_rows = logic->process_input("\33c", 2);
 
-    EXPECT_EQ(logic->current_attr.fg.r, 255);
-    EXPECT_EQ(logic->current_attr.fg.g, 255);
-    EXPECT_EQ(logic->current_attr.fg.b, 255);
+    EXPECT_EQ(logic->current_attr.fg, AnsiLogic::normal_colors[7]);
+    EXPECT_EQ(logic->current_attr.bg, AnsiLogic::normal_colors[0]);
     EXPECT_EQ(logic->cursor.row, 0);
     EXPECT_EQ(logic->cursor.col, 0);
     for (int r = 0; r < logic->get_rows(); ++r) {
@@ -110,27 +109,17 @@ TEST_F(AnsiLogicTest, EscMSetsColors)
     std::vector<int> dirty_rows;
 
     logic->parse_ansi_sequence("[31m", dirty_rows); // Red foreground
-    EXPECT_EQ(logic->current_attr.fg.r, 255);
-    EXPECT_EQ(logic->current_attr.fg.g, 0);
-    EXPECT_EQ(logic->current_attr.fg.b, 0);
+    EXPECT_EQ(logic->current_attr.fg, AnsiLogic::normal_colors[1]);
     EXPECT_TRUE(dirty_rows.empty());
 
     logic->parse_ansi_sequence("[41m", dirty_rows); // Red background
-    EXPECT_EQ(logic->current_attr.fg.r, 255);       // Foreground should remain red
-    EXPECT_EQ(logic->current_attr.fg.g, 0);
-    EXPECT_EQ(logic->current_attr.fg.b, 0);
-    EXPECT_EQ(logic->current_attr.bg.r, 255);
-    EXPECT_EQ(logic->current_attr.bg.g, 0);
-    EXPECT_EQ(logic->current_attr.bg.b, 0);
+    EXPECT_EQ(logic->current_attr.fg, AnsiLogic::normal_colors[1]); // Foreground should remain red
+    EXPECT_EQ(logic->current_attr.bg, AnsiLogic::normal_colors[1]);
     EXPECT_TRUE(dirty_rows.empty());
 
     logic->parse_ansi_sequence("[0m", dirty_rows); // Reset
-    EXPECT_EQ(logic->current_attr.fg.r, 255);
-    EXPECT_EQ(logic->current_attr.fg.g, 255);
-    EXPECT_EQ(logic->current_attr.fg.b, 255);
-    EXPECT_EQ(logic->current_attr.bg.r, 0);
-    EXPECT_EQ(logic->current_attr.bg.g, 0);
-    EXPECT_EQ(logic->current_attr.bg.b, 0);
+    EXPECT_EQ(logic->current_attr.fg, AnsiLogic::normal_colors[7]);
+    EXPECT_EQ(logic->current_attr.bg, AnsiLogic::normal_colors[0]);
     EXPECT_TRUE(dirty_rows.empty());
 }
 

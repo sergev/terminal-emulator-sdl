@@ -80,7 +80,7 @@ struct RgbColor {
 
 // Structure for character attributes
 struct CharAttr {
-    RgbColor fg{ 255, 255, 255 }; // Foreground color (default white)
+    RgbColor fg{ 192, 192, 192 }; // Foreground color (default light gray)
     RgbColor bg{ 0, 0, 0 };       // Background color (default black)
 
     bool operator==(const CharAttr &other) const
@@ -140,7 +140,8 @@ private:
     std::string ansi_seq;
 
     // ANSI colors
-    static const RgbColor ansi_colors[];
+    static const RgbColor normal_colors[8];
+    static const RgbColor bright_colors[8];
 
     // ANSI parsing methods
     void parse_ansi_sequence(const std::string &seq, std::vector<int> &dirty_rows);
